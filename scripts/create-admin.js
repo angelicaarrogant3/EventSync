@@ -21,22 +21,28 @@ function ask(rl, question, { silent = false } = {}) {
       return;
     }
 
-    const onData = (char) => {
-      char = char + '';
-      switch (char) {
-        case '\n':
-        case '\r':
-        case '\u0004':
-          process.stdin.removeListener('data', onData);
-          break;
-        default:
-          process.stdout.write('\x1B[2K\x1B[200D' + question + '*'.repeat(rl.line.length));
-          break;
+    const originalWrite = rl._writeToOutput;
+    let promptShown = false;
+    rl._writeToOutput = function writeMuted(stringToWrite) {
+      if (!promptShown) {
+        rl.output.write(stringToWrite);
+        if (stringToWrite.includes(question)) {
+          promptShown = true;
+        }
+        return;
+      }
+      if (stringToWrite === '\r\n' || stringToWrite === '\n' || stringToWrite === '\r') {
+        rl.output.write(stringToWrite);
+        return;
+      }
+      if (stringToWrite.length > 0) {
+        rl.output.write('*');
       }
     };
-    process.stdin.on('data', onData);
+
     rl.question(question, (answer) => {
-      process.stdout.write('\n');
+      rl._writeToOutput = originalWrite;
+      rl.output.write('\n');
       resolve(answer.trim());
     });
   });
@@ -57,7 +63,12 @@ async function main() {
       if (!fullName) fullName = (await ask(rl, 'Full Name (e.g. System Administrator): ')) || 'System Administrator';
       if (!username) username = await ask(rl, 'Username (3-32 chars): ');
       if (!email) email = await ask(rl, 'Email: ');
-      if (!password) password = await ask(rl, 'Password (min 8 chars): ', { silent: true });
+      while (!password || password.length < 8) {
+        password = await ask(rl, 'Password (min 8 chars): ', { silent: true });
+        if (password.length < 8) {
+          console.log('[Error] Password must be at least 8 characters long. Please try again.');
+        }
+      }
     } finally {
       rl.close();
     }
