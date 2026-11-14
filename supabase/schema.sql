@@ -267,3 +267,7 @@ grant insert, update, delete on public.events to authenticated;  -- RLS restrict
 revoke all on all tables in schema public from anon;
 revoke truncate, references, trigger on all tables in schema public from authenticated;
 notify pgrst, 'reload schema';
+
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant execute on all functions in schema public to service_role;
