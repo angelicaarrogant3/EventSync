@@ -24,15 +24,15 @@ function initializeSockets(httpServer) {
     pingTimeout: 10000
   });
 
-  // Authenticate every Socket.IO connection using the same SQLite session cookie
-  io.use((socket, next) => {
+  // Authenticate every Socket.IO connection using the same database session cookie
+  io.use(async (socket, next) => {
     try {
       const cookies = parseCookies(socket.handshake.headers?.cookie || '');
       const sid = cookies[SESSION_COOKIE_NAME] || socket.handshake.auth?.sessionId;
       if (!sid) {
         return next(new Error('UNAUTHORIZED'));
       }
-      const sess = getSession(sid, { touch: true });
+      const sess = await getSession(sid, { touch: true });
       if (!sess || !sess.user) {
         return next(new Error('UNAUTHORIZED'));
       }
@@ -54,24 +54,24 @@ function initializeSockets(httpServer) {
     socket.join(`user:${user.id}`);
 
     // Only Administrator sockets can register as cluster stations and send heartbeats
-    socket.on('node:identify', (data) => {
+    socket.on('node:identify', async (data) => {
       if (user.role !== 'administrator') return;
       const { nodeId, deviceId, role, deviceType, deviceName } = data || {};
       const finalId = deviceId || nodeId;
       if (finalId && role) {
         socketToDeviceMap.set(socket.id, { deviceId: finalId, role, deviceType, deviceName });
         socket.join(`station:${role}`);
-        recordHeartbeat(finalId, role, clientIp, deviceType, deviceName);
-        broadcastNodeStatus();
+        await recordHeartbeat(finalId, role, clientIp, deviceType, deviceName);
+        await broadcastNodeStatus();
       }
     });
 
-    socket.on('node:heartbeat', (data) => {
+    socket.on('node:heartbeat', async (data) => {
       if (user.role !== 'administrator') return;
       const { nodeId, deviceId, role, deviceType, deviceName } = data || {};
       const finalId = deviceId || nodeId;
       if (finalId && role) {
-        recordHeartbeat(finalId, role, clientIp, deviceType, deviceName);
+        await recordHeartbeat(finalId, role, clientIp, deviceType, deviceName);
       }
     });
 
@@ -83,10 +83,14 @@ function initializeSockets(httpServer) {
   });
 
   if (healthCheckTimer) clearInterval(healthCheckTimer);
-  healthCheckTimer = setInterval(() => {
-    const { changed } = checkNodeTimeouts(config.heartbeatTimeoutMs);
-    if (changed) {
-      broadcastNodeStatus();
+  healthCheckTimer = setInterval(async () => {
+    try {
+      const { changed } = await checkNodeTimeouts(config.heartbeatTimeoutMs);
+      if (changed) {
+        await broadcastNodeStatus();
+      }
+    } catch {
+      // Non-fatal background supervisor tick
     }
   }, 3000);
 
@@ -94,15 +98,19 @@ function initializeSockets(httpServer) {
   return io;
 }
 
-function broadcastNodeStatus() {
+async function broadcastNodeStatus() {
   if (!io) return;
-  const nodes = getAllNodes();
-  const summary = getNodesSummary();
-  io.to('role:administrator').emit('node:status', {
-    timestamp: new Date().toISOString(),
-    nodes,
-    summary
-  });
+  try {
+    const nodes = await getAllNodes();
+    const summary = await getNodesSummary();
+    io.to('role:administrator').emit('node:status', {
+      timestamp: new Date().toISOString(),
+      nodes,
+      summary
+    });
+  } catch {
+    // Non-fatal
+  }
 }
 
 function broadcastRegistrationCreated(data) {

@@ -7,7 +7,7 @@ const { broadcastEventUpdated, broadcastEventDeleted } = require('../sockets/soc
 const { requireAuth, requireRole } = require('../middleware/auth.middleware');
 
 // GET /api/events?status=&includeArchived=&category=&search=&date=
-router.get('/events', requireAuth, (req, res, next) => {
+router.get('/events', requireAuth, async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'administrator';
     const { status, includeArchived, category, search, date } = req.query;
@@ -16,7 +16,7 @@ router.get('/events', requireAuth, (req, res, next) => {
     const effectiveStatus = isAdmin ? (status || null) : 'OPEN';
     const effectiveIncludeArchived = isAdmin && includeArchived === 'true';
 
-    const events = eventsService.listEvents(effectiveStatus, effectiveIncludeArchived, {
+    const events = await eventsService.listEvents(effectiveStatus, effectiveIncludeArchived, {
       category,
       search,
       eventDate: date
@@ -28,9 +28,9 @@ router.get('/events', requireAuth, (req, res, next) => {
 });
 
 // GET /api/events/:id
-router.get('/events/:id', requireAuth, (req, res, next) => {
+router.get('/events/:id', requireAuth, async (req, res, next) => {
   try {
-    const event = eventsService.getEventById(req.params.id);
+    const event = await eventsService.getEventById(req.params.id);
     if (!event) {
       return error(res, 'EVENT_NOT_FOUND', 'Event not found', 404);
     }
@@ -44,10 +44,10 @@ router.get('/events/:id', requireAuth, (req, res, next) => {
 });
 
 // POST /api/events (Admin only)
-router.post('/events', requireRole('administrator'), (req, res, next) => {
+router.post('/events', requireRole('administrator'), async (req, res, next) => {
   try {
     const nodeId = req.headers['x-node-id'] || 'node-4';
-    const event = eventsService.createEvent(req.body, nodeId, req.user.id);
+    const event = await eventsService.createEvent(req.body, nodeId, req.user.id);
     broadcastEventUpdated({ event, action: 'CREATE' });
     return success(res, event, 201);
   } catch (err) {
@@ -56,10 +56,10 @@ router.post('/events', requireRole('administrator'), (req, res, next) => {
 });
 
 // PUT /api/events/:id (Admin only)
-router.put('/events/:id', requireRole('administrator'), (req, res, next) => {
+router.put('/events/:id', requireRole('administrator'), async (req, res, next) => {
   try {
     const nodeId = req.headers['x-node-id'] || 'node-4';
-    const event = eventsService.updateEvent(req.params.id, req.body, nodeId, req.user.id);
+    const event = await eventsService.updateEvent(req.params.id, req.body, nodeId, req.user.id);
     if (!event) {
       return error(res, 'EVENT_NOT_FOUND', 'Event not found', 404);
     }
@@ -71,14 +71,14 @@ router.put('/events/:id', requireRole('administrator'), (req, res, next) => {
 });
 
 // PATCH /api/events/:id/status (Admin only)
-router.patch('/events/:id/status', requireRole('administrator'), (req, res, next) => {
+router.patch('/events/:id/status', requireRole('administrator'), async (req, res, next) => {
   try {
     const { status } = req.body;
     if (!status) {
       return error(res, 'MISSING_STATUS', 'Status field is required', 400);
     }
     const nodeId = req.headers['x-node-id'] || 'node-4';
-    const event = eventsService.updateEventStatus(req.params.id, status, nodeId, req.user.id);
+    const event = await eventsService.updateEventStatus(req.params.id, status, nodeId, req.user.id);
     if (!event) {
       return error(res, 'EVENT_NOT_FOUND', 'Event not found', 404);
     }
@@ -90,13 +90,13 @@ router.patch('/events/:id/status', requireRole('administrator'), (req, res, next
 });
 
 // DELETE /api/events/:id?force=true&archive=true (Admin only)
-router.delete('/events/:id', requireRole('administrator'), (req, res, next) => {
+router.delete('/events/:id', requireRole('administrator'), async (req, res, next) => {
   try {
     const force = req.query.force === 'true';
     const archive = req.query.archive === 'true';
     const nodeId = req.headers['x-node-id'] || 'node-4';
 
-    const result = eventsService.deleteEvent(req.params.id, { force, archive }, nodeId, req.user.id);
+    const result = await eventsService.deleteEvent(req.params.id, { force, archive }, nodeId, req.user.id);
     if (!result) {
       return error(res, 'EVENT_NOT_FOUND', 'Event not found', 404);
     }
@@ -120,9 +120,9 @@ router.delete('/events/:id', requireRole('administrator'), (req, res, next) => {
 });
 
 // GET /api/events/:id/stats (Admin only)
-router.get('/events/:id/stats', requireRole('administrator'), (req, res, next) => {
+router.get('/events/:id/stats', requireRole('administrator'), async (req, res, next) => {
   try {
-    const stats = eventsService.getEventStats(req.params.id);
+    const stats = await eventsService.getEventStats(req.params.id);
     if (!stats) {
       return error(res, 'EVENT_NOT_FOUND', 'Event not found', 404);
     }
@@ -133,9 +133,9 @@ router.get('/events/:id/stats', requireRole('administrator'), (req, res, next) =
 });
 
 // GET /api/events/:id/attendance/live (Admin only)
-router.get('/events/:id/attendance/live', requireRole('administrator'), (req, res, next) => {
+router.get('/events/:id/attendance/live', requireRole('administrator'), async (req, res, next) => {
   try {
-    const snapshot = attendanceService.getLiveAttendance(req.params.id);
+    const snapshot = await attendanceService.getLiveAttendance(req.params.id);
     if (!snapshot) {
       return error(res, 'EVENT_NOT_FOUND', 'Event not found', 404);
     }

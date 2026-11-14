@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db/connection');
+const { query } = require('../db/connection');
 const registrationsService = require('../services/registrations.service');
 const attendanceService = require('../services/attendance.service');
 const { logActivity } = require('../services/activity.service');
@@ -17,7 +17,7 @@ router.get('/my/profile', requireAuth, (req, res) => {
 });
 
 // PUT /api/my/profile
-router.put('/my/profile', requireAuth, (req, res, next) => {
+router.put('/my/profile', requireAuth, async (req, res, next) => {
   try {
     const { full_name, email, contact_number, department_or_course, year_level } = req.body || {};
     const cleanName = full_name ? String(full_name).trim() : req.user.full_name;
@@ -27,36 +27,37 @@ router.put('/my/profile', requireAuth, (req, res, next) => {
       return error(res, 'INVALID_INPUT', 'Valid full name and email are required.', 400);
     }
 
-    const dupEmail = db.prepare(`SELECT id FROM users WHERE lower(email) = ? AND id != ?`).get(cleanEmail, req.user.id);
+    const dupEmail = await query.get(`SELECT id FROM users WHERE lower(email) = ? AND id != ?`, [cleanEmail, req.user.id]);
     if (dupEmail) {
       return error(res, 'DUPLICATE_EMAIL', 'That email address is already used by another account.', 409);
     }
 
-    db.prepare(`UPDATE users SET full_name = ?, email = ? WHERE id = ?`).run(cleanName, cleanEmail, req.user.id);
+    await query.run(`UPDATE users SET full_name = ?, email = ? WHERE id = ?`, [cleanName, cleanEmail, req.user.id]);
 
     if (req.participant) {
-      db.prepare(`
-        UPDATE participants
-        SET full_name = ?, email = ?, contact_number = ?, department_or_course = ?, year_level = ?
-        WHERE id = ?
-      `).run(
-        cleanName,
-        cleanEmail,
-        contact_number !== undefined ? String(contact_number).trim() : (req.participant.contact_number || ''),
-        department_or_course !== undefined ? String(department_or_course).trim() : req.participant.department_or_course,
-        year_level !== undefined ? String(year_level).trim() : req.participant.year_level,
-        req.participant.id
+      await query.run(
+        `UPDATE participants
+         SET full_name = ?, email = ?, contact_number = ?, department_or_course = ?, year_level = ?
+         WHERE id = ?`,
+        [
+          cleanName,
+          cleanEmail,
+          contact_number !== undefined ? String(contact_number).trim() : (req.participant.contact_number || ''),
+          department_or_course !== undefined ? String(department_or_course).trim() : req.participant.department_or_course,
+          year_level !== undefined ? String(year_level).trim() : req.participant.year_level,
+          req.participant.id
+        ]
       );
     }
 
-    logActivity({
+    await logActivity({
       userId: req.user.id,
       action: 'PROFILE_UPDATED',
       description: `User "${req.user.username}" updated their profile.`
     });
 
-    const updatedUser = db.prepare(`SELECT id, full_name, username, email, role, account_status, must_change_password, created_at FROM users WHERE id = ?`).get(req.user.id);
-    const updatedParticipant = db.prepare(`SELECT * FROM participants WHERE user_id = ?`).get(req.user.id) || null;
+    const updatedUser = await query.get(`SELECT id, full_name, username, email, role, account_status, must_change_password, created_at FROM users WHERE id = ?`, [req.user.id]);
+    const updatedParticipant = (await query.get(`SELECT * FROM participants WHERE user_id = ?`, [req.user.id])) || null;
     return success(res, { user: updatedUser, participant: updatedParticipant });
   } catch (err) {
     next(err);
@@ -114,7 +115,7 @@ router.delete('/my/registrations/:id', requireAuth, async (req, res, next) => {
     if (reg.participant_user_id !== req.user.id) {
       return error(res, 'FORBIDDEN', 'You can only cancel your own registration.', 403);
     }
-    const result = registrationsService.cancelRegistration(req.params.id, 'participant-portal', req.user.id);
+    const result = await registrationsService.cancelRegistration(req.params.id, 'participant-portal', req.user.id);
     return success(res, result);
   } catch (err) {
     next(err);
@@ -122,9 +123,9 @@ router.delete('/my/registrations/:id', requireAuth, async (req, res, next) => {
 });
 
 // GET /api/my/attendance (Participant's own attendance history)
-router.get('/my/attendance', requireAuth, (req, res, next) => {
+router.get('/my/attendance', requireAuth, async (req, res, next) => {
   try {
-    const rows = attendanceService.getAttendanceByUser(req.user.id);
+    const rows = await attendanceService.getAttendanceByUser(req.user.id);
     return success(res, rows);
   } catch (err) {
     next(err);

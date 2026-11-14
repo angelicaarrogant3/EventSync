@@ -1,12 +1,12 @@
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
-const { db } = require('../db/connection');
+const { query } = require('../db/connection');
 const { generateQrDataUrl } = require('./qr.service');
 const { generateSignedQrToken } = require('../utils/crypto');
 const { logActivity } = require('./activity.service');
 
 /**
- * Register a participant for an event inside an ACID SQLite transaction.
+ * Register a participant for an event inside an ACID transaction.
  */
 async function registerParticipant({
   eventId,
@@ -42,38 +42,19 @@ async function registerParticipant({
 
   const registrationId = uuidv4();
   const qrToken = generateSignedQrToken(registrationId, eventId, 1);
-
-  const getEventStmt = db.prepare(`SELECT * FROM events WHERE id = ?`);
-  const countRegsStmt = db.prepare(`SELECT COUNT(*) AS count FROM registrations WHERE event_id = ? AND status = 'REGISTERED'`);
-  const getParticipantStmt = db.prepare(`SELECT * FROM participants WHERE school_id = ?`);
-
-  const insertParticipantStmt = db.prepare(`
-    INSERT INTO participants (id, user_id, school_id, full_name, email, contact_number, department_or_course, year_level, role)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const updateParticipantStmt = db.prepare(`
-    UPDATE participants
-    SET full_name = ?, email = ?, contact_number = COALESCE(NULLIF(?, ''), contact_number), department_or_course = ?, year_level = ?, role = ?, user_id = COALESCE(user_id, ?)
-    WHERE id = ?
-  `);
-
-  const insertRegStmt = db.prepare(`
-    INSERT INTO registrations (id, event_id, participant_id, qr_token, token_version, status, registered_by_node, registered_by_user_id)
-    VALUES (?, ?, ?, ?, 1, 'REGISTERED', ?, ?)
-  `);
-
-  const auditStmt = db.prepare(`
-    INSERT INTO audit_log (id, action, entity, entity_id, node_id, details_json)
-    VALUES (?, 'REGISTER', 'REGISTRATION', ?, ?, ?)
-  `);
+  const nowIso = new Date().toISOString();
 
   let participantId;
   let finalParticipant;
   let eventRecord;
   let createdAccount = null;
 
-  const executeRegistrationTx = db.transaction(() => {
-    eventRecord = getEventStmt.get(eventId);
+  await query.transaction(async (tx) => {
+    const eventSql = tx.isPostgres
+      ? `SELECT * FROM events WHERE id = ? FOR UPDATE`
+      : `SELECT * FROM events WHERE id = ?`;
+    eventRecord = await tx.get(eventSql, [eventId]);
+
     if (!eventRecord) {
       const err = new Error('Event not found');
       err.code = 'EVENT_NOT_FOUND';
@@ -98,8 +79,12 @@ async function registerParticipant({
       }
     }
 
-    const activeCount = countRegsStmt.get(eventId).count;
-    if (activeCount >= eventRecord.capacity) {
+    const regCountRow = await tx.get(
+      `SELECT COUNT(*) AS count FROM registrations WHERE event_id = ? AND status = 'REGISTERED'`,
+      [eventId]
+    );
+    const activeCount = Number(regCountRow?.count || 0);
+    if (activeCount >= Number(eventRecord.capacity)) {
       const err = new Error(`Event is at full capacity (${eventRecord.capacity} slots filled)`);
       err.code = 'EVENT_FULL';
       err.status = 409;
@@ -108,7 +93,7 @@ async function registerParticipant({
 
     const cleanSchoolId = String(school_id).trim();
     const cleanEmail = String(email).trim().toLowerCase();
-    const existingParticipant = getParticipantStmt.get(cleanSchoolId);
+    const existingParticipant = await tx.get(`SELECT * FROM participants WHERE school_id = ?`, [cleanSchoolId]);
 
     let linkedUserId = existingParticipant ? existingParticipant.user_id : null;
 
@@ -116,54 +101,73 @@ async function registerParticipant({
       const baseUsername = cleanEmail.split('@')[0].replace(/[^a-z0-9._-]/gi, '').toLowerCase() || `user${Date.now()}`;
       let candidateUsername = baseUsername.slice(0, 24);
       let suffix = 1;
-      while (db.prepare(`SELECT id FROM users WHERE lower(username) = ?`).get(candidateUsername)) {
+      while (await tx.get(`SELECT id FROM users WHERE lower(username) = ?`, [candidateUsername])) {
         candidateUsername = `${baseUsername.slice(0, 20)}${suffix++}`;
       }
-      const existingEmailUser = db.prepare(`SELECT id FROM users WHERE lower(email) = ?`).get(cleanEmail);
+      const existingEmailUser = await tx.get(`SELECT id FROM users WHERE lower(email) = ?`, [cleanEmail]);
       if (existingEmailUser) {
         linkedUserId = existingEmailUser.id;
       } else {
         linkedUserId = uuidv4();
         const pwHash = bcrypt.hashSync(String(tempPassword), 10);
-        db.prepare(`
-          INSERT INTO users (id, full_name, username, email, password_hash, role, account_status, must_change_password)
-          VALUES (?, ?, ?, ?, ?, 'participant', 'active', 1)
-        `).run(linkedUserId, full_name.trim(), candidateUsername, cleanEmail, pwHash);
+        await tx.run(
+          `INSERT INTO users (id, full_name, username, email, password_hash, role, account_status, must_change_password, created_at)
+           VALUES (?, ?, ?, ?, ?, 'participant', 'active', 1, ?)`,
+          [linkedUserId, full_name.trim(), candidateUsername, cleanEmail, pwHash, nowIso]
+        );
         createdAccount = { id: linkedUserId, username: candidateUsername, email: cleanEmail };
       }
     }
 
     if (existingParticipant) {
       participantId = existingParticipant.id;
-      updateParticipantStmt.run(
-        full_name.trim(),
-        cleanEmail,
-        String(contact_number || '').trim(),
-        department_or_course.trim(),
-        year_level.trim(),
-        role,
-        linkedUserId,
-        participantId
+      await tx.run(
+        `UPDATE participants
+         SET full_name = ?, email = ?, contact_number = COALESCE(NULLIF(?, ''), contact_number), department_or_course = ?, year_level = ?, role = ?, user_id = COALESCE(user_id, ?)
+         WHERE id = ?`,
+        [
+          full_name.trim(),
+          cleanEmail,
+          String(contact_number || '').trim(),
+          department_or_course.trim(),
+          year_level.trim(),
+          role,
+          linkedUserId,
+          participantId
+        ]
       );
     } else {
       participantId = uuidv4();
-      insertParticipantStmt.run(
-        participantId,
-        linkedUserId,
-        cleanSchoolId,
-        full_name.trim(),
-        cleanEmail,
-        String(contact_number || '').trim(),
-        department_or_course.trim(),
-        year_level.trim(),
-        role
+      await tx.run(
+        `INSERT INTO participants (id, user_id, school_id, full_name, email, contact_number, department_or_course, year_level, role, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          participantId,
+          linkedUserId,
+          cleanSchoolId,
+          full_name.trim(),
+          cleanEmail,
+          String(contact_number || '').trim(),
+          department_or_course.trim(),
+          year_level.trim(),
+          role,
+          nowIso
+        ]
       );
     }
 
     try {
-      insertRegStmt.run(registrationId, eventId, participantId, qrToken, nodeId, registeredByUserId || null);
+      await tx.run(
+        `INSERT INTO registrations (id, event_id, participant_id, qr_token, token_version, status, registered_at, registered_by_node, registered_by_user_id)
+         VALUES (?, ?, ?, ?, 1, 'REGISTERED', ?, ?, ?)`,
+        [registrationId, eventId, participantId, qrToken, nowIso, nodeId, registeredByUserId || null]
+      );
     } catch (dbErr) {
-      if (dbErr.message.includes('UNIQUE constraint failed') || dbErr.code === 'SQLITE_CONSTRAINT') {
+      if (
+        dbErr.code === '23505' ||
+        dbErr.code === 'SQLITE_CONSTRAINT' ||
+        (dbErr.message && dbErr.message.includes('UNIQUE constraint failed'))
+      ) {
         const err = new Error(`Participant with School ID '${cleanSchoolId}' is already registered for this event.`);
         err.code = 'ALREADY_REGISTERED';
         err.status = 409;
@@ -172,29 +176,27 @@ async function registerParticipant({
       throw dbErr;
     }
 
-    auditStmt.run(
-      uuidv4(),
-      registrationId,
-      nodeId,
-      JSON.stringify({ eventId, school_id: cleanSchoolId, participantId, registeredByUserId })
+    await tx.run(
+      `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+       VALUES (?, 'REGISTER', 'REGISTRATION', ?, ?, ?, ?)`,
+      [uuidv4(), registrationId, nodeId, nowIso, JSON.stringify({ eventId, school_id: cleanSchoolId, participantId, registeredByUserId })]
     );
 
-    finalParticipant = getParticipantStmt.get(cleanSchoolId);
+    finalParticipant = await tx.get(`SELECT * FROM participants WHERE school_id = ?`, [cleanSchoolId]);
   });
-
-  executeRegistrationTx();
 
   const qrDataUrl = await generateQrDataUrl(qrToken);
 
-  const remainingCount = db.prepare(`
-    SELECT (e.capacity - COUNT(r.id)) AS remaining
-    FROM events e
-    LEFT JOIN registrations r ON e.id = r.event_id AND r.status = 'REGISTERED'
-    WHERE e.id = ?
-    GROUP BY e.id
-  `).get(eventId);
+  const remainingCount = await query.get(
+    `SELECT (e.capacity - COUNT(r.id)) AS remaining
+     FROM events e
+     LEFT JOIN registrations r ON e.id = r.event_id AND r.status = 'REGISTERED'
+     WHERE e.id = ?
+     GROUP BY e.id`,
+    [eventId]
+  );
 
-  logActivity({
+  await logActivity({
     userId: registeredByUserId || finalParticipant.user_id || null,
     action: 'REGISTRATION_CREATED',
     description: `Registered "${finalParticipant.full_name}" (${finalParticipant.school_id}) for "${eventRecord.title}".`
@@ -208,7 +210,7 @@ async function registerParticipant({
       qrToken,
       tokenVersion: 1,
       status: 'REGISTERED',
-      registeredAt: new Date().toISOString(),
+      registeredAt: nowIso,
       registeredByNode: nodeId,
       registeredByUserId: registeredByUserId || null
     },
@@ -216,13 +218,13 @@ async function registerParticipant({
     event: eventRecord,
     createdAccount,
     qrDataUrl,
-    remainingCapacity: remainingCount ? remainingCount.remaining : 0
+    remainingCapacity: remainingCount ? Number(remainingCount.remaining) : 0
   };
 }
 
-function getRegistrationsByEvent(eventId) {
-  const query = `
-    SELECT 
+async function getRegistrationsByEvent(eventId) {
+  return query.all(
+    `SELECT
       r.id AS registration_id,
       r.event_id,
       r.status AS registration_status,
@@ -256,15 +258,14 @@ function getRegistrationsByEvent(eventId) {
     JOIN events e ON r.event_id = e.id
     LEFT JOIN attendance a ON r.id = a.registration_id
     WHERE r.event_id = ?
-    ORDER BY r.registered_at DESC
-  `;
-
-  return db.prepare(query).all(eventId);
+    ORDER BY r.registered_at DESC`,
+    [eventId]
+  );
 }
 
 async function getRegistrationsByUser(userId) {
-  const rows = db.prepare(`
-    SELECT
+  const rows = await query.all(
+    `SELECT
       r.id,
       r.event_id,
       r.participant_id,
@@ -292,8 +293,9 @@ async function getRegistrationsByUser(userId) {
     JOIN events e ON r.event_id = e.id
     LEFT JOIN attendance a ON r.id = a.registration_id
     WHERE p.user_id = ?
-    ORDER BY e.event_date DESC, r.registered_at DESC
-  `).all(userId);
+    ORDER BY e.event_date DESC, r.registered_at DESC`,
+    [userId]
+  );
 
   return Promise.all(rows.map(async (row) => ({
     ...row,
@@ -302,8 +304,8 @@ async function getRegistrationsByUser(userId) {
 }
 
 async function getRegistrationById(id) {
-  const query = `
-    SELECT 
+  const record = await query.get(
+    `SELECT
       r.*,
       p.user_id AS participant_user_id,
       p.school_id,
@@ -322,19 +324,18 @@ async function getRegistrationById(id) {
     FROM registrations r
     JOIN participants p ON r.participant_id = p.id
     JOIN events e ON r.event_id = e.id
-    WHERE r.id = ?
-  `;
+    WHERE r.id = ?`,
+    [id]
+  );
 
-  const record = db.prepare(query).get(id);
   if (!record) return null;
-
   const qrDataUrl = await generateQrDataUrl(record.qr_token);
   return { ...record, qrDataUrl };
 }
 
 async function findRegistrationBySchoolId(eventId, schoolId) {
-  const query = `
-    SELECT 
+  const record = await query.get(
+    `SELECT
       r.*,
       p.user_id AS participant_user_id,
       p.school_id,
@@ -353,12 +354,11 @@ async function findRegistrationBySchoolId(eventId, schoolId) {
     FROM registrations r
     JOIN participants p ON r.participant_id = p.id
     JOIN events e ON r.event_id = e.id
-    WHERE r.event_id = ? AND p.school_id = ? AND r.status = 'REGISTERED'
-  `;
+    WHERE r.event_id = ? AND p.school_id = ? AND r.status = 'REGISTERED'`,
+    [eventId, String(schoolId).trim()]
+  );
 
-  const record = db.prepare(query).get(eventId, String(schoolId).trim());
   if (!record) return null;
-
   const qrDataUrl = await generateQrDataUrl(record.qr_token);
   return { ...record, qrDataUrl };
 }
@@ -367,12 +367,13 @@ async function findRegistrationBySchoolId(eventId, schoolId) {
  * Reissue QR code for a registration (increments token_version, invalidating old tokens)
  */
 async function reissueQrToken(registrationId, actorUserId = null) {
-  const reg = db.prepare(`
-    SELECT r.*, p.full_name, p.school_id
-    FROM registrations r
-    JOIN participants p ON r.participant_id = p.id
-    WHERE r.id = ?
-  `).get(registrationId);
+  const reg = await query.get(
+    `SELECT r.*, p.full_name, p.school_id
+     FROM registrations r
+     JOIN participants p ON r.participant_id = p.id
+     WHERE r.id = ?`,
+    [registrationId]
+  );
 
   if (!reg) return null;
   if (reg.status !== 'REGISTERED') {
@@ -382,14 +383,15 @@ async function reissueQrToken(registrationId, actorUserId = null) {
     throw err;
   }
 
-  const nextVersion = (reg.token_version || 1) + 1;
+  const nextVersion = Number(reg.token_version || 1) + 1;
   const newToken = generateSignedQrToken(reg.id, reg.event_id, nextVersion);
 
-  db.prepare(`
-    UPDATE registrations SET qr_token = ?, token_version = ? WHERE id = ?
-  `).run(newToken, nextVersion, reg.id);
+  await query.run(
+    `UPDATE registrations SET qr_token = ?, token_version = ? WHERE id = ?`,
+    [newToken, nextVersion, reg.id]
+  );
 
-  logActivity({
+  await logActivity({
     userId: actorUserId,
     action: 'QR_REISSUED',
     description: `Reissued QR pass (v${nextVersion}) for ${reg.full_name} (${reg.school_id}).`
@@ -398,30 +400,27 @@ async function reissueQrToken(registrationId, actorUserId = null) {
   return getRegistrationById(reg.id);
 }
 
-function cancelRegistration(id, nodeId = 'node-4', actorUserId = null) {
-  const existing = db.prepare(`
-    SELECT r.*, p.full_name, p.school_id
-    FROM registrations r
-    JOIN participants p ON r.participant_id = p.id
-    WHERE r.id = ?
-  `).get(id);
+async function cancelRegistration(id, nodeId = 'node-4', actorUserId = null) {
+  const existing = await query.get(
+    `SELECT r.*, p.full_name, p.school_id
+     FROM registrations r
+     JOIN participants p ON r.participant_id = p.id
+     WHERE r.id = ?`,
+    [id]
+  );
 
   if (!existing) return null;
 
-  const stmt = db.prepare(`UPDATE registrations SET status = 'CANCELLED' WHERE id = ?`);
-  const auditStmt = db.prepare(`
-    INSERT INTO audit_log (id, action, entity, entity_id, node_id, details_json)
-    VALUES (?, 'CANCEL', 'REGISTRATION', ?, ?, '{}')
-  `);
-
-  const tx = db.transaction(() => {
-    stmt.run(id);
-    auditStmt.run(uuidv4(), id, nodeId);
+  await query.transaction(async (tx) => {
+    await tx.run(`UPDATE registrations SET status = 'CANCELLED' WHERE id = ?`, [id]);
+    await tx.run(
+      `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+       VALUES (?, 'CANCEL', 'REGISTRATION', ?, ?, ?, '{}')`,
+      [uuidv4(), id, nodeId, new Date().toISOString()]
+    );
   });
 
-  tx();
-
-  logActivity({
+  await logActivity({
     userId: actorUserId,
     action: 'REGISTRATION_CANCELLED',
     description: `Cancelled registration for ${existing.full_name} (${existing.school_id}).`

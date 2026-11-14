@@ -24,6 +24,7 @@
     "express": "^4.21.2",
     "node-forge": "^1.4.3",
     "pdfkit": "^0.16.0",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0",
@@ -43,4 +44,3 @@
   "author": "University Parallel and Distributed Computing Group",
   "license": "ISC"
 }
-

@@ -79,13 +79,13 @@ async function ensureAuthCookie() {
     });
     if (res) { authCookie = res; return; }
   }
-  // Fallback: create a temporary admin session directly in local SQLite DB
+  // Fallback: create a temporary admin session directly in database
   const { initializeDatabase } = require('../server/src/db/connection');
   const { createAdministrator, createSession } = require('../server/src/services/auth.service');
-  initializeDatabase();
+  await initializeDatabase();
   const uname = `conc_admin_${Date.now()}`;
-  const admin = createAdministrator({ full_name: 'Concurrency Admin', username: uname, email: `${uname}@eventsync.test`, password: 'TestPassword123!' });
-  const { sessionId } = createSession(admin.id);
+  const admin = await createAdministrator({ full_name: 'Concurrency Admin', username: uname, email: `${uname}@eventsync.test`, password: 'TestPassword123!' });
+  const { sessionId } = await createSession(admin.id);
   authCookie = `eventsync_sid=${sessionId}`;
 }
 

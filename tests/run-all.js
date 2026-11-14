@@ -49,16 +49,18 @@ async function runTestSuite() {
 
   // 4. Cluster Node Health & Missing-Roles Detection Test
   console.log('\nTest 4: Node Health Registry & Flexible Device Summary');
+  const { initializeDatabase } = require('../server/src/db/connection');
+  await initializeDatabase();
   // Mark all existing non-server devices offline so previous test runs don't pollute state
-  for (const n of nodesService.getAllNodes()) {
+  for (const n of await nodesService.getAllNodes()) {
     if (n.role !== 'SERVER') {
-      nodesService.markNodeOffline(n.node_id);
+      await nodesService.markNodeOffline(n.node_id);
     }
   }
-  nodesService.recordHeartbeat('node-1', 'SERVER', '127.0.0.1', 'laptop', 'Central Server Laptop');
-  nodesService.recordHeartbeat('dev-phone-01', 'REGISTRATION', '192.168.1.50', 'phone', 'Registration Phone');
+  await nodesService.recordHeartbeat('node-1', 'SERVER', '127.0.0.1', 'laptop', 'Central Server Laptop');
+  await nodesService.recordHeartbeat('dev-phone-01', 'REGISTRATION', '192.168.1.50', 'phone', 'Registration Phone');
 
-  const summary = nodesService.getNodesSummary();
+  const summary = await nodesService.getNodesSummary();
   assert(summary.countsByRole.SERVER >= 1, 'SERVER role must have at least 1 online device');
   assert(summary.countsByRole.REGISTRATION >= 1, 'REGISTRATION role must have at least 1 online device');
   assert(Array.isArray(summary.missingRoles), 'missingRoles must be an array');
@@ -69,10 +71,10 @@ async function runTestSuite() {
   console.log(`  [PASS] Missing roles accurately reported: [${missingRoleNames.join(', ')}]`);
 
   // Now register SCANNER and ORGANIZER to test cluster completion
-  nodesService.recordHeartbeat('dev-scanner-02', 'SCANNER', '192.168.1.51', 'tablet', 'Front Gate iPad');
-  nodesService.recordHeartbeat('dev-org-03', 'ORGANIZER', '192.168.1.52', 'phone', 'Director iPhone');
+  await nodesService.recordHeartbeat('dev-scanner-02', 'SCANNER', '192.168.1.51', 'tablet', 'Front Gate iPad');
+  await nodesService.recordHeartbeat('dev-org-03', 'ORGANIZER', '192.168.1.52', 'phone', 'Director iPhone');
 
-  const completeSummary = nodesService.getNodesSummary();
+  const completeSummary = await nodesService.getNodesSummary();
   assert(completeSummary.isClusterComplete === true, 'Cluster should be complete when all 4 roles are active');
   assert(completeSummary.missingRoles.length === 0, 'No missing roles when cluster complete');
   console.log('  [PASS] Cluster health supervisor confirmed all 4 roles active with mixed device types.');

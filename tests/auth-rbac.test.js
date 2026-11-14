@@ -10,7 +10,7 @@ const os = require('os');
 const http = require('http');
 const assert = require('assert');
 const Database = require('better-sqlite3');
-const { initializeDatabase, db } = require('../server/src/db/connection');
+const { initializeDatabase, query } = require('../server/src/db/connection');
 const app = require('../server/src/app');
 const { initializeSockets } = require('../server/src/sockets/socketManager');
 const { createAdministrator, failedLoginBuckets } = require('../server/src/services/auth.service');
@@ -60,7 +60,7 @@ async function runAuthRbacTests() {
   console.log('   EVENTSYNC: AUTH, RBAC, SOCKET AUTH & REPORTS TEST SUITE      ');
   console.log('================================================================\n');
 
-  initializeDatabase();
+  await initializeDatabase();
   const server = http.createServer(app);
   initializeSockets(server);
 
@@ -172,7 +172,7 @@ async function runAuthRbacTests() {
     });
     const part2Cookie = part2Login.setCookie;
 
-    const adminUser = createAdministrator({
+    const adminUser = await createAdministrator({
       full_name: 'Test Admin',
       username: `admin_${ts}`,
       email: `admin_${ts}@university.edu`,
@@ -318,7 +318,7 @@ async function runAuthRbacTests() {
 
     // 7. Session expiry & Logout
     console.log('\n7. Session expiry & Logout...');
-    db.prepare(`UPDATE sessions SET expires_at = ? WHERE user_id = ?`).run(Date.now() - 1000, part2Login.data.data.user.id);
+    await query.run(`UPDATE sessions SET expires_at = ? WHERE user_id = ?`, [Date.now() - 1000, part2Login.data.data.user.id]);
     const expiredMe = await requestJson(baseUrl, 'GET', '/api/auth/me', null, part2Cookie);
     assert.strictEqual(expiredMe.status, 401);
 
@@ -347,16 +347,19 @@ async function runAuthRbacTests() {
     // Run schema + migration against the temp DB using a child node process with DB_PATH=tmpDbPath
     const { execFileSync } = require('child_process');
     execFileSync(process.execPath, ['-e', `
+      process.env.DATABASE_URL = '';
       process.env.DB_PATH = ${JSON.stringify(tmpDbPath)};
       const { initializeDatabase, db } = require('./server/src/db/connection');
-      initializeDatabase();
-      const ev = db.prepare('SELECT COUNT(*) AS c FROM events').get().c;
-      const p = db.prepare('SELECT COUNT(*) AS c FROM participants').get().c;
-      const r = db.prepare('SELECT COUNT(*) AS c FROM registrations').get().c;
-      const a = db.prepare('SELECT COUNT(*) AS c FROM attendance').get().c;
-      if (ev !== 1 || p !== 1 || r !== 1 || a !== 1) throw new Error('Data lost during migration!');
-      db.prepare("INSERT INTO events (id, title, venue, event_date, start_time, end_time, capacity, status) VALUES ('ev-2', 'New', 'Hall', '2026-10-02', '09:00', '10:00', 10, 'ONGOING')").run();
-      db.close();
+      (async () => {
+        await initializeDatabase();
+        const ev = db.prepare('SELECT COUNT(*) AS c FROM events').get().c;
+        const p = db.prepare('SELECT COUNT(*) AS c FROM participants').get().c;
+        const r = db.prepare('SELECT COUNT(*) AS c FROM registrations').get().c;
+        const a = db.prepare('SELECT COUNT(*) AS c FROM attendance').get().c;
+        if (ev !== 1 || p !== 1 || r !== 1 || a !== 1) throw new Error('Data lost during migration!');
+        db.prepare("INSERT INTO events (id, title, venue, event_date, start_time, end_time, capacity, status) VALUES ('ev-2', 'New', 'Hall', '2026-10-02', '09:00', '10:00', 10, 'ONGOING')").run();
+        db.close();
+      })().catch((e) => { console.error(e); process.exit(1); });
     `], { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' });
     fs.unlinkSync(tmpDbPath);
     console.log('  [PASS] Legacy database migrated safely with 100% data preserved.');

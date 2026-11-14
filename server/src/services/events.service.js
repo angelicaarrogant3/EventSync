@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('../db/connection');
+const { query } = require('../db/connection');
 const { logActivity } = require('./activity.service');
 
 const VALID_STATUSES = ['DRAFT', 'OPEN', 'ONGOING', 'COMPLETED', 'CANCELLED', 'CLOSED', 'ENDED'];
@@ -38,6 +38,18 @@ function isValidDeadline(deadline) {
   if (deadline === undefined || deadline === null || String(deadline).trim() === '') return true;
   const parsed = Date.parse(String(deadline).trim());
   return !Number.isNaN(parsed);
+}
+
+function normalizeEventRow(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    capacity: Number(row.capacity),
+    archived: Number(row.archived || 0),
+    registered_count: Number(row.registered_count || 0),
+    checked_in_count: Number(row.checked_in_count || 0),
+    remaining_capacity: Number(row.remaining_capacity ?? row.capacity ?? 0)
+  };
 }
 
 function validateEventInput(data, existing = null) {
@@ -114,9 +126,9 @@ function validateEventInput(data, existing = null) {
 /**
  * List events with optional filters: status, includeArchived, category, search, eventDate
  */
-function listEvents(statusFilter = null, includeArchived = false, filters = {}) {
-  let query = `
-    SELECT 
+async function listEvents(statusFilter = null, includeArchived = false, filters = {}) {
+  let sql = `
+    SELECT
       e.*,
       COALESCE(r.reg_count, 0) AS registered_count,
       COALESCE(a.att_count, 0) AS checked_in_count,
@@ -158,23 +170,24 @@ function listEvents(statusFilter = null, includeArchived = false, filters = {}) 
   }
 
   if (filters.search) {
-    conditions.push(`(e.title LIKE ? OR e.description LIKE ? OR e.venue LIKE ? OR e.category LIKE ?)`);
+    conditions.push(`(LOWER(e.title) LIKE LOWER(?) OR LOWER(COALESCE(e.description, '')) LIKE LOWER(?) OR LOWER(e.venue) LIKE LOWER(?) OR LOWER(e.category) LIKE LOWER(?))`);
     const like = `%${String(filters.search).trim()}%`;
     params.push(like, like, like, like);
   }
 
   if (conditions.length > 0) {
-    query += ` WHERE ` + conditions.join(' AND ');
+    sql += ` WHERE ` + conditions.join(' AND ');
   }
 
-  query += ` ORDER BY e.archived ASC, e.event_date DESC, e.start_time DESC`;
+  sql += ` ORDER BY e.archived ASC, e.event_date DESC, e.start_time DESC`;
 
-  return db.prepare(query).all(...params);
+  const rows = await query.all(sql, params);
+  return rows.map(normalizeEventRow);
 }
 
-function getEventById(id) {
-  const query = `
-    SELECT 
+async function getEventById(id) {
+  const row = await query.get(
+    `SELECT
       e.*,
       COALESCE(r.reg_count, 0) AS registered_count,
       COALESCE(a.att_count, 0) AS checked_in_count,
@@ -184,19 +197,22 @@ function getEventById(id) {
       SELECT event_id, COUNT(*) AS reg_count
       FROM registrations
       WHERE status = 'REGISTERED' AND event_id = ?
+      GROUP BY event_id
     ) r ON e.id = r.event_id
     LEFT JOIN (
       SELECT event_id, COUNT(*) AS att_count
       FROM attendance
       WHERE event_id = ?
+      GROUP BY event_id
     ) a ON e.id = a.event_id
-    WHERE e.id = ?
-  `;
+    WHERE e.id = ?`,
+    [id, id, id]
+  );
 
-  return db.prepare(query).get(id, id, id) || null;
+  return normalizeEventRow(row);
 }
 
-function createEvent(data, nodeId = 'node-4', actorUserId = null) {
+async function createEvent(data, nodeId = 'node-4', actorUserId = null) {
   validateEventInput(data, null);
 
   const {
@@ -215,36 +231,35 @@ function createEvent(data, nodeId = 'node-4', actorUserId = null) {
   const cleanDeadline = registration_deadline && String(registration_deadline).trim() ? String(registration_deadline).trim() : null;
   const cleanCategory = category && String(category).trim() ? String(category).trim() : 'General';
   const id = uuidv4();
+  const nowIso = new Date().toISOString();
 
-  const stmt = db.prepare(`
-    INSERT INTO events (id, title, description, category, venue, event_date, start_time, end_time, registration_deadline, capacity, status, archived)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-  `);
-
-  const auditStmt = db.prepare(`
-    INSERT INTO audit_log (id, action, entity, entity_id, node_id, details_json)
-    VALUES (?, 'CREATE', 'EVENT', ?, ?, ?)
-  `);
-
-  const tx = db.transaction(() => {
-    stmt.run(
-      id,
-      title.trim(),
-      description ? String(description).trim() : null,
-      cleanCategory,
-      venue.trim(),
-      event_date,
-      start_time,
-      end_time,
-      cleanDeadline,
-      parseInt(capacity, 10),
-      finalStatus
+  await query.transaction(async (tx) => {
+    await tx.run(
+      `INSERT INTO events (id, title, description, category, venue, event_date, start_time, end_time, registration_deadline, capacity, status, archived, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      [
+        id,
+        title.trim(),
+        description ? String(description).trim() : null,
+        cleanCategory,
+        venue.trim(),
+        event_date,
+        start_time,
+        end_time,
+        cleanDeadline,
+        parseInt(capacity, 10),
+        finalStatus,
+        nowIso
+      ]
     );
-    auditStmt.run(uuidv4(), id, nodeId, JSON.stringify({ title: title.trim(), venue: venue.trim(), capacity: parseInt(capacity, 10), status: finalStatus }));
+    await tx.run(
+      `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+       VALUES (?, 'CREATE', 'EVENT', ?, ?, ?, ?)`,
+      [uuidv4(), id, nodeId, nowIso, JSON.stringify({ title: title.trim(), venue: venue.trim(), capacity: parseInt(capacity, 10), status: finalStatus })]
+    );
   });
 
-  tx();
-  logActivity({
+  await logActivity({
     userId: actorUserId,
     action: 'EVENT_CREATED',
     description: `Created event "${title.trim()}" (${finalStatus}).`
@@ -252,8 +267,8 @@ function createEvent(data, nodeId = 'node-4', actorUserId = null) {
   return getEventById(id);
 }
 
-function updateEvent(id, data, nodeId = 'node-4', actorUserId = null) {
-  const existing = getEventById(id);
+async function updateEvent(id, data, nodeId = 'node-4', actorUserId = null) {
+  const existing = await getEventById(id);
   if (!existing) {
     return null;
   }
@@ -273,24 +288,21 @@ function updateEvent(id, data, nodeId = 'node-4', actorUserId = null) {
   const capacity = data.capacity !== undefined ? parseInt(data.capacity, 10) : existing.capacity;
   const status = data.status !== undefined ? normalizeStatus(data.status) : existing.status;
 
-  const stmt = db.prepare(`
-    UPDATE events
-    SET title = ?, description = ?, category = ?, venue = ?, event_date = ?, start_time = ?, end_time = ?, registration_deadline = ?, capacity = ?, status = ?
-    WHERE id = ?
-  `);
-
-  const auditStmt = db.prepare(`
-    INSERT INTO audit_log (id, action, entity, entity_id, node_id, details_json)
-    VALUES (?, 'UPDATE', 'EVENT', ?, ?, ?)
-  `);
-
-  const tx = db.transaction(() => {
-    stmt.run(title, description, category, venue, event_date, start_time, end_time, registration_deadline, capacity, status, id);
-    auditStmt.run(uuidv4(), id, nodeId, JSON.stringify(data));
+  await query.transaction(async (tx) => {
+    await tx.run(
+      `UPDATE events
+       SET title = ?, description = ?, category = ?, venue = ?, event_date = ?, start_time = ?, end_time = ?, registration_deadline = ?, capacity = ?, status = ?
+       WHERE id = ?`,
+      [title, description, category, venue, event_date, start_time, end_time, registration_deadline, capacity, status, id]
+    );
+    await tx.run(
+      `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+       VALUES (?, 'UPDATE', 'EVENT', ?, ?, ?, ?)`,
+      [uuidv4(), id, nodeId, new Date().toISOString(), JSON.stringify(data)]
+    );
   });
 
-  tx();
-  logActivity({
+  await logActivity({
     userId: actorUserId,
     action: 'EVENT_UPDATED',
     description: `Updated event "${title}".`
@@ -298,28 +310,25 @@ function updateEvent(id, data, nodeId = 'node-4', actorUserId = null) {
   return getEventById(id);
 }
 
-function updateEventStatus(id, newStatus, nodeId = 'node-4', actorUserId = null) {
+async function updateEventStatus(id, newStatus, nodeId = 'node-4', actorUserId = null) {
   const normalized = normalizeStatus(newStatus);
   if (!VALID_STATUSES.includes(normalized)) {
     throw domainError('INVALID_STATUS', 'INVALID_STATUS: Must be one of ' + VALID_STATUSES.join(', '), 400);
   }
 
-  const existing = getEventById(id);
+  const existing = await getEventById(id);
   if (!existing) return null;
 
-  const stmt = db.prepare(`UPDATE events SET status = ? WHERE id = ?`);
-  const auditStmt = db.prepare(`
-    INSERT INTO audit_log (id, action, entity, entity_id, node_id, details_json)
-    VALUES (?, 'STATUS_CHANGE', 'EVENT', ?, ?, ?)
-  `);
-
-  const tx = db.transaction(() => {
-    stmt.run(normalized, id);
-    auditStmt.run(uuidv4(), id, nodeId, JSON.stringify({ oldStatus: existing.status, newStatus: normalized }));
+  await query.transaction(async (tx) => {
+    await tx.run(`UPDATE events SET status = ? WHERE id = ?`, [normalized, id]);
+    await tx.run(
+      `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+       VALUES (?, 'STATUS_CHANGE', 'EVENT', ?, ?, ?, ?)`,
+      [uuidv4(), id, nodeId, new Date().toISOString(), JSON.stringify({ oldStatus: existing.status, newStatus: normalized })]
+    );
   });
 
-  tx();
-  logActivity({
+  await logActivity({
     userId: actorUserId,
     action: 'EVENT_STATUS_CHANGED',
     description: `Changed event "${existing.title}" status from ${existing.status} to ${normalized}.`
@@ -327,30 +336,30 @@ function updateEventStatus(id, newStatus, nodeId = 'node-4', actorUserId = null)
   return getEventById(id);
 }
 
-function deleteEvent(id, options = {}, nodeId = 'node-4', actorUserId = null) {
+async function deleteEvent(id, options = {}, nodeId = 'node-4', actorUserId = null) {
   const { force = false, archive = false } = options;
   let outcome = null;
 
-  const tx = db.transaction(() => {
-    const existing = db.prepare(`SELECT * FROM events WHERE id = ?`).get(id);
+  await query.transaction(async (tx) => {
+    const existing = await tx.get(`SELECT * FROM events WHERE id = ?`, [id]);
     if (!existing) {
       outcome = null;
       return;
     }
 
-    const regRow = db.prepare(`SELECT COUNT(*) AS cnt FROM registrations WHERE event_id = ?`).get(id);
-    const attRow = db.prepare(`SELECT COUNT(*) AS cnt FROM attendance WHERE event_id = ?`).get(id);
-    const registrationsCount = regRow ? regRow.cnt : 0;
-    const attendanceCount = attRow ? attRow.cnt : 0;
-
-    const auditStmt = db.prepare(`
-      INSERT INTO audit_log (id, action, entity, entity_id, node_id, details_json)
-      VALUES (?, ?, 'EVENT', ?, ?, ?)
-    `);
+    const regRow = await tx.get(`SELECT COUNT(*) AS cnt FROM registrations WHERE event_id = ?`, [id]);
+    const attRow = await tx.get(`SELECT COUNT(*) AS cnt FROM attendance WHERE event_id = ?`, [id]);
+    const registrationsCount = regRow ? Number(regRow.cnt) : 0;
+    const attendanceCount = attRow ? Number(attRow.cnt) : 0;
+    const nowIso = new Date().toISOString();
 
     if (archive) {
-      db.prepare(`UPDATE events SET archived = 1 WHERE id = ?`).run(id);
-      auditStmt.run(uuidv4(), 'ARCHIVE', id, nodeId, JSON.stringify({ title: existing.title, registrationsCount, attendanceCount }));
+      await tx.run(`UPDATE events SET archived = 1 WHERE id = ?`, [id]);
+      await tx.run(
+        `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+         VALUES (?, 'ARCHIVE', 'EVENT', ?, ?, ?, ?)`,
+        [uuidv4(), id, nodeId, nowIso, JSON.stringify({ title: existing.title, registrationsCount, attendanceCount })]
+      );
       outcome = {
         action: 'ARCHIVED',
         eventId: id,
@@ -361,8 +370,12 @@ function deleteEvent(id, options = {}, nodeId = 'node-4', actorUserId = null) {
     }
 
     if (registrationsCount === 0 && attendanceCount === 0) {
-      db.prepare(`DELETE FROM events WHERE id = ?`).run(id);
-      auditStmt.run(uuidv4(), 'DELETE', id, nodeId, JSON.stringify({ title: existing.title, force: false }));
+      await tx.run(`DELETE FROM events WHERE id = ?`, [id]);
+      await tx.run(
+        `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+         VALUES (?, 'DELETE', 'EVENT', ?, ?, ?, ?)`,
+        [uuidv4(), id, nodeId, nowIso, JSON.stringify({ title: existing.title, force: false })]
+      );
       outcome = {
         action: 'DELETED',
         eventId: id,
@@ -381,16 +394,14 @@ function deleteEvent(id, options = {}, nodeId = 'node-4', actorUserId = null) {
       );
     }
 
-    db.prepare(`DELETE FROM attendance WHERE event_id = ?`).run(id);
-    db.prepare(`DELETE FROM registrations WHERE event_id = ?`).run(id);
-    db.prepare(`DELETE FROM events WHERE id = ?`).run(id);
+    await tx.run(`DELETE FROM attendance WHERE event_id = ?`, [id]);
+    await tx.run(`DELETE FROM registrations WHERE event_id = ?`, [id]);
+    await tx.run(`DELETE FROM events WHERE id = ?`, [id]);
 
-    auditStmt.run(
-      uuidv4(),
-      'DELETE',
-      id,
-      nodeId,
-      JSON.stringify({ title: existing.title, force: true, deletedRegistrations: registrationsCount, deletedAttendance: attendanceCount })
+    await tx.run(
+      `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+       VALUES (?, 'DELETE', 'EVENT', ?, ?, ?, ?)`,
+      [uuidv4(), id, nodeId, nowIso, JSON.stringify({ title: existing.title, force: true, deletedRegistrations: registrationsCount, deletedAttendance: attendanceCount })]
     );
 
     outcome = {
@@ -401,13 +412,11 @@ function deleteEvent(id, options = {}, nodeId = 'node-4', actorUserId = null) {
     };
   });
 
-  tx();
-
   if (outcome && outcome.action === 'ARCHIVED') {
-    outcome.event = getEventById(id);
+    outcome.event = await getEventById(id);
   }
   if (outcome) {
-    logActivity({
+    await logActivity({
       userId: actorUserId,
       action: `EVENT_${outcome.action}`,
       description: `${outcome.action} event "${outcome.title}".`
@@ -417,20 +426,28 @@ function deleteEvent(id, options = {}, nodeId = 'node-4', actorUserId = null) {
   return outcome;
 }
 
-function getEventStats(id) {
-  const event = getEventById(id);
+async function getEventStats(id) {
+  const event = await getEventById(id);
   if (!event) return null;
 
-  const checkInsByHour = db.prepare(`
-    SELECT strftime('%H:00', checked_in_at) AS hour_slot, COUNT(*) AS check_in_count
-    FROM attendance
-    WHERE event_id = ?
-    GROUP BY hour_slot
-    ORDER BY hour_slot ASC
-  `).all(id);
+  const attTimestamps = await query.all(
+    `SELECT checked_in_at FROM attendance WHERE event_id = ? ORDER BY checked_in_at ASC`,
+    [id]
+  );
 
-  const byDepartment = db.prepare(`
-    SELECT 
+  const hourBuckets = new Map();
+  for (const row of attTimestamps) {
+    const raw = String(row.checked_in_at || '');
+    const m = raw.match(/(?:T|\s)(\d{2}):/);
+    const hour = m ? `${m[1]}:00` : '00:00';
+    hourBuckets.set(hour, (hourBuckets.get(hour) || 0) + 1);
+  }
+  const checkInsByHour = Array.from(hourBuckets.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([hour_slot, check_in_count]) => ({ hour_slot, check_in_count }));
+
+  const byDepartmentRows = await query.all(
+    `SELECT
       p.department_or_course AS department,
       COUNT(DISTINCT r.id) AS registered_count,
       COUNT(DISTINCT a.id) AS checked_in_count
@@ -439,11 +456,12 @@ function getEventStats(id) {
     LEFT JOIN attendance a ON r.id = a.registration_id
     WHERE r.event_id = ? AND r.status = 'REGISTERED'
     GROUP BY p.department_or_course
-    ORDER BY registered_count DESC
-  `).all(id);
+    ORDER BY registered_count DESC`,
+    [id]
+  );
 
-  const byRole = db.prepare(`
-    SELECT 
+  const byRoleRows = await query.all(
+    `SELECT
       p.role,
       COUNT(DISTINCT r.id) AS registered_count,
       COUNT(DISTINCT a.id) AS checked_in_count
@@ -451,8 +469,9 @@ function getEventStats(id) {
     JOIN participants p ON r.participant_id = p.id
     LEFT JOIN attendance a ON r.id = a.registration_id
     WHERE r.event_id = ? AND r.status = 'REGISTERED'
-    GROUP BY p.role
-  `).all(id);
+    GROUP BY p.role`,
+    [id]
+  );
 
   const attendanceRate = event.registered_count > 0
     ? Math.round((event.checked_in_count / event.registered_count) * 1000) / 10
@@ -468,8 +487,16 @@ function getEventStats(id) {
     remainingCapacity: event.remaining_capacity,
     attendanceRate,
     checkInsByHour,
-    byDepartment,
-    byRole
+    byDepartment: byDepartmentRows.map((r) => ({
+      ...r,
+      registered_count: Number(r.registered_count || 0),
+      checked_in_count: Number(r.checked_in_count || 0)
+    })),
+    byRole: byRoleRows.map((r) => ({
+      ...r,
+      registered_count: Number(r.registered_count || 0),
+      checked_in_count: Number(r.checked_in_count || 0)
+    }))
   };
 }
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db/connection');
+const { query } = require('../db/connection');
 const authService = require('../services/auth.service');
 const { listActivityLogs } = require('../services/activity.service');
 const { success, error } = require('../utils/response');
@@ -10,9 +10,9 @@ const { requireRole } = require('../middleware/auth.middleware');
 router.use('/admin', requireRole('administrator'));
 
 // GET /api/admin/users?role=&status=
-router.get('/admin/users', (req, res, next) => {
+router.get('/admin/users', async (req, res, next) => {
   try {
-    const users = authService.listUsers({
+    const users = await authService.listUsers({
       role: req.query.role || null,
       status: req.query.status || null
     });
@@ -23,10 +23,10 @@ router.get('/admin/users', (req, res, next) => {
 });
 
 // POST /api/admin/users/admin (Create another Administrator)
-router.post('/admin/users/admin', (req, res, next) => {
+router.post('/admin/users/admin', async (req, res, next) => {
   try {
     const { full_name, username, email, password } = req.body || {};
-    const admin = authService.createAdministrator({
+    const admin = await authService.createAdministrator({
       full_name,
       username,
       email,
@@ -40,10 +40,10 @@ router.post('/admin/users/admin', (req, res, next) => {
 });
 
 // PATCH /api/admin/users/:id/status
-router.patch('/admin/users/:id/status', (req, res, next) => {
+router.patch('/admin/users/:id/status', async (req, res, next) => {
   try {
     const { account_status } = req.body || {};
-    const updated = authService.setAccountStatus(req.params.id, account_status, req.user.id);
+    const updated = await authService.setAccountStatus(req.params.id, account_status, req.user.id);
     return success(res, updated);
   } catch (err) {
     next(err);
@@ -51,13 +51,13 @@ router.patch('/admin/users/:id/status', (req, res, next) => {
 });
 
 // POST /api/admin/users/:id/reset-password
-router.post('/admin/users/:id/reset-password', (req, res, next) => {
+router.post('/admin/users/:id/reset-password', async (req, res, next) => {
   try {
     const { tempPassword } = req.body || {};
     if (!tempPassword) {
       return error(res, 'INVALID_INPUT', 'tempPassword is required.', 400);
     }
-    const updated = authService.resetUserPassword(req.params.id, tempPassword, req.user.id);
+    const updated = await authService.resetUserPassword(req.params.id, tempPassword, req.user.id);
     return success(res, updated);
   } catch (err) {
     next(err);
@@ -65,14 +65,16 @@ router.post('/admin/users/:id/reset-password', (req, res, next) => {
 });
 
 // GET /api/admin/participants?search=
-router.get('/admin/participants', (req, res, next) => {
+router.get('/admin/participants', async (req, res, next) => {
   try {
     const search = req.query.search ? `%${String(req.query.search).trim()}%` : null;
-    const where = search ? `WHERE p.full_name LIKE ? OR p.school_id LIKE ? OR p.email LIKE ? OR p.department_or_course LIKE ?` : '';
+    const where = search
+      ? `WHERE LOWER(p.full_name) LIKE LOWER(?) OR LOWER(p.school_id) LIKE LOWER(?) OR LOWER(p.email) LIKE LOWER(?) OR LOWER(p.department_or_course) LIKE LOWER(?)`
+      : '';
     const params = search ? [search, search, search, search] : [];
 
-    const rows = db.prepare(`
-      SELECT
+    const rows = await query.all(
+      `SELECT
         p.*,
         u.username,
         u.account_status,
@@ -83,18 +85,23 @@ router.get('/admin/participants', (req, res, next) => {
       LEFT JOIN registrations r ON p.id = r.participant_id
       LEFT JOIN attendance a ON r.id = a.registration_id
       ${where}
-      GROUP BY p.id
-      ORDER BY p.created_at DESC
-    `).all(...params);
+      GROUP BY p.id, u.username, u.account_status
+      ORDER BY p.created_at DESC`,
+      params
+    );
 
-    return success(res, rows);
+    return success(res, rows.map((r) => ({
+      ...r,
+      registration_count: Number(r.registration_count || 0),
+      attendance_count: Number(r.attendance_count || 0)
+    })));
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/admin/records?eventId=&search=
-router.get('/admin/records', (req, res, next) => {
+router.get('/admin/records', async (req, res, next) => {
   try {
     const conditions = [];
     const params = [];
@@ -104,13 +111,13 @@ router.get('/admin/records', (req, res, next) => {
     }
     if (req.query.search) {
       const like = `%${String(req.query.search).trim()}%`;
-      conditions.push('(p.full_name LIKE ? OR p.school_id LIKE ? OR e.title LIKE ?)');
+      conditions.push('(LOWER(p.full_name) LIKE LOWER(?) OR LOWER(p.school_id) LIKE LOWER(?) OR LOWER(e.title) LIKE LOWER(?))');
       params.push(like, like, like);
     }
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const rows = db.prepare(`
-      SELECT
+    const rows = await query.all(
+      `SELECT
         r.id AS registration_id,
         r.status AS registration_status,
         r.registered_at,
@@ -140,8 +147,9 @@ router.get('/admin/records', (req, res, next) => {
       LEFT JOIN attendance a ON r.id = a.registration_id
       ${where}
       ORDER BY r.registered_at DESC
-      LIMIT 300
-    `).all(...params);
+      LIMIT 300`,
+      params
+    );
 
     return success(res, rows);
   } catch (err) {
@@ -150,9 +158,9 @@ router.get('/admin/records', (req, res, next) => {
 });
 
 // GET /api/admin/activity?action=&search=&limit=
-router.get('/admin/activity', (req, res, next) => {
+router.get('/admin/activity', async (req, res, next) => {
   try {
-    const logs = listActivityLogs({
+    const logs = await listActivityLogs({
       action: req.query.action || null,
       search: req.query.search || null,
       limit: req.query.limit || 150

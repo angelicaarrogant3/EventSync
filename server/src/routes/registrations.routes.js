@@ -6,9 +6,9 @@ const { broadcastRegistrationCreated } = require('../sockets/socketManager');
 const { requireAuth, requireRole } = require('../middleware/auth.middleware');
 
 // GET /api/events/:id/registrations (Admin only)
-router.get('/events/:id/registrations', requireRole('administrator'), (req, res, next) => {
+router.get('/events/:id/registrations', requireRole('administrator'), async (req, res, next) => {
   try {
-    const list = registrationsService.getRegistrationsByEvent(req.params.id);
+    const list = await registrationsService.getRegistrationsByEvent(req.params.id);
     return success(res, list);
   } catch (err) {
     next(err);
@@ -126,7 +126,7 @@ router.delete('/registrations/:id', requireAuth, async (req, res, next) => {
       return error(res, 'FORBIDDEN', 'You can only cancel your own registration.', 403);
     }
     const nodeId = req.headers['x-node-id'] || (req.user.role === 'administrator' ? 'node-4' : 'participant-portal');
-    const result = registrationsService.cancelRegistration(req.params.id, nodeId, req.user.id);
+    const result = await registrationsService.cancelRegistration(req.params.id, nodeId, req.user.id);
     return success(res, result);
   } catch (err) {
     next(err);

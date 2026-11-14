@@ -12,9 +12,9 @@ function getClientIp(req) {
 }
 
 // POST /api/auth/signup (Public participant signup — always role='participant')
-router.post('/auth/signup', (req, res, next) => {
+router.post('/auth/signup', async (req, res, next) => {
   try {
-    const result = authService.signupParticipant(req.body || {});
+    const result = await authService.signupParticipant(req.body || {});
     return success(res, {
       user: result.user,
       participant: result.participant,
@@ -26,14 +26,14 @@ router.post('/auth/signup', (req, res, next) => {
 });
 
 // POST /api/auth/login
-router.post('/auth/login', (req, res, next) => {
+router.post('/auth/login', async (req, res, next) => {
   try {
     const { username, email, usernameOrEmail, password } = req.body || {};
     const identifier = usernameOrEmail || username || email;
     const ip = getClientIp(req);
     const userAgent = req.headers['user-agent'] || '';
 
-    const result = authService.loginUser({
+    const result = await authService.loginUser({
       usernameOrEmail: identifier,
       password,
       ip,
@@ -54,19 +54,23 @@ router.post('/auth/login', (req, res, next) => {
 });
 
 // POST /api/auth/logout
-router.post('/auth/logout', (req, res) => {
-  if (req.sessionId) {
-    authService.deleteSession(req.sessionId);
+router.post('/auth/logout', async (req, res, next) => {
+  try {
+    if (req.sessionId) {
+      await authService.deleteSession(req.sessionId);
+    }
+    if (req.user) {
+      await logActivity({
+        userId: req.user.id,
+        action: 'LOGOUT',
+        description: `${req.user.role} "${req.user.username}" logged out.`
+      });
+    }
+    clearSessionCookie(res);
+    return success(res, { loggedOut: true });
+  } catch (err) {
+    next(err);
   }
-  if (req.user) {
-    logActivity({
-      userId: req.user.id,
-      action: 'LOGOUT',
-      description: `${req.user.role} "${req.user.username}" logged out.`
-    });
-  }
-  clearSessionCookie(res);
-  return success(res, { loggedOut: true });
 });
 
 // GET /api/auth/me
@@ -78,10 +82,10 @@ router.get('/auth/me', requireAuth, (req, res) => {
 });
 
 // POST /api/auth/change-password
-router.post('/auth/change-password', requireAuth, (req, res, next) => {
+router.post('/auth/change-password', requireAuth, async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body || {};
-    const updated = authService.changeOwnPassword(req.user.id, currentPassword, newPassword);
+    const updated = await authService.changeOwnPassword(req.user.id, currentPassword, newPassword);
     return success(res, { user: updated });
   } catch (err) {
     next(err);

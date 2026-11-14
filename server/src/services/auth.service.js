@@ -1,7 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { db } = require('../db/connection');
+const { query } = require('../db/connection');
 const config = require('../config');
 const { logActivity } = require('./activity.service');
 
@@ -27,7 +27,7 @@ function validatePasswordPolicy(password) {
 
 function pruneBucket(key, now) {
   const list = failedLoginBuckets.get(key) || [];
-  const fresh = list.filter(ts => now - ts < RATE_LIMIT_WINDOW_MS);
+  const fresh = list.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
   if (fresh.length === 0) {
     failedLoginBuckets.delete(key);
   } else {
@@ -81,18 +81,19 @@ function sanitizeUser(row) {
 }
 
 /**
- * Create a new SQLite-backed session for a user
+ * Create a new database-backed session for a user
  */
-function createSession(userId, { ip = null, userAgent = null } = {}) {
+async function createSession(userId, { ip = null, userAgent = null } = {}) {
   const sessionId = crypto.randomBytes(32).toString('hex');
   const now = Date.now();
   const timeoutMs = (config.sessionTimeoutMinutes || 120) * 60 * 1000;
   const expiresAt = now + timeoutMs;
 
-  db.prepare(`
-    INSERT INTO sessions (id, user_id, expires_at, last_activity_at, ip_address, user_agent)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(sessionId, userId, expiresAt, now, ip, userAgent);
+  await query.run(
+    `INSERT INTO sessions (id, user_id, expires_at, last_activity_at, ip_address, user_agent, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [sessionId, userId, expiresAt, now, ip, userAgent, new Date().toISOString()]
+  );
 
   return { sessionId, expiresAt };
 }
@@ -100,11 +101,11 @@ function createSession(userId, { ip = null, userAgent = null } = {}) {
 /**
  * Validate a session ID, enforce inactivity timeout, and slide expiration
  */
-function getSession(sessionId, { touch = true } = {}) {
+async function getSession(sessionId, { touch = true } = {}) {
   if (!sessionId || typeof sessionId !== 'string') return null;
 
-  const row = db.prepare(`
-    SELECT
+  const row = await query.get(
+    `SELECT
       s.id AS session_id,
       s.user_id,
       s.expires_at,
@@ -119,58 +120,62 @@ function getSession(sessionId, { touch = true } = {}) {
       u.created_at
     FROM sessions s
     JOIN users u ON s.user_id = u.id
-    WHERE s.id = ?
-  `).get(sessionId);
+    WHERE s.id = ?`,
+    [sessionId]
+  );
 
   if (!row) return null;
 
   const now = Date.now();
-  if (row.expires_at <= now) {
-    db.prepare(`DELETE FROM sessions WHERE id = ?`).run(sessionId);
+  const expiresAtNum = Number(row.expires_at);
+  if (expiresAtNum <= now) {
+    await query.run(`DELETE FROM sessions WHERE id = ?`, [sessionId]);
     return null;
   }
 
   if (row.account_status !== 'active') {
-    db.prepare(`DELETE FROM sessions WHERE id = ?`).run(sessionId);
+    await query.run(`DELETE FROM sessions WHERE id = ?`, [sessionId]);
     return null;
   }
 
+  let finalExpiresAt = expiresAtNum;
   if (touch) {
     const timeoutMs = (config.sessionTimeoutMinutes || 120) * 60 * 1000;
     const nextExpires = now + timeoutMs;
-    db.prepare(`
-      UPDATE sessions SET last_activity_at = ?, expires_at = ? WHERE id = ?
-    `).run(now, nextExpires, sessionId);
-    row.expires_at = nextExpires;
+    await query.run(
+      `UPDATE sessions SET last_activity_at = ?, expires_at = ? WHERE id = ?`,
+      [now, nextExpires, sessionId]
+    );
+    finalExpiresAt = nextExpires;
   }
 
-  const participant = db.prepare(`SELECT * FROM participants WHERE user_id = ?`).get(row.user_id) || null;
+  const participant = (await query.get(`SELECT * FROM participants WHERE user_id = ?`, [row.user_id])) || null;
 
   return {
     sessionId: row.session_id,
-    expiresAt: row.expires_at,
+    expiresAt: finalExpiresAt,
     user: sanitizeUser(row),
     participant
   };
 }
 
-function deleteSession(sessionId) {
+async function deleteSession(sessionId) {
   if (!sessionId) return;
-  db.prepare(`DELETE FROM sessions WHERE id = ?`).run(sessionId);
+  await query.run(`DELETE FROM sessions WHERE id = ?`, [sessionId]);
 }
 
-function deleteUserSessions(userId) {
-  db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(userId);
+async function deleteUserSessions(userId) {
+  await query.run(`DELETE FROM sessions WHERE user_id = ?`, [userId]);
 }
 
-function purgeExpiredSessions() {
-  db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(Date.now());
+async function purgeExpiredSessions() {
+  await query.run(`DELETE FROM sessions WHERE expires_at <= ?`, [Date.now()]);
 }
 
 /**
  * Public Participant Sign-Up (always creates role = 'participant')
  */
-function signupParticipant(payload) {
+async function signupParticipant(payload) {
   const full_name = String(payload.full_name || '').trim();
   const username = String(payload.username || '').trim().toLowerCase();
   const email = String(payload.email || '').trim().toLowerCase();
@@ -198,44 +203,46 @@ function signupParticipant(payload) {
     throw domainError('PASSWORD_MISMATCH', 'Passwords do not match.', 400);
   }
 
-  const existingUser = db.prepare(`SELECT id FROM users WHERE lower(username) = ? OR lower(email) = ?`).get(username, email);
+  const existingUser = await query.get(`SELECT id FROM users WHERE lower(username) = ? OR lower(email) = ?`, [username, email]);
   if (existingUser) {
     throw domainError('DUPLICATE_ACCOUNT', 'An account with that username or email already exists.', 409);
   }
 
-  const existingParticipant = db.prepare(`SELECT id, user_id FROM participants WHERE school_id = ?`).get(school_id);
+  const existingParticipant = await query.get(`SELECT id, user_id FROM participants WHERE school_id = ?`, [school_id]);
   if (existingParticipant && existingParticipant.user_id) {
     throw domainError('DUPLICATE_SCHOOL_ID', 'This school/employee ID is already linked to an account.', 409);
   }
 
   const passwordHash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
   const userId = uuidv4();
+  const nowIso = new Date().toISOString();
 
-  const tx = db.transaction(() => {
-    db.prepare(`
-      INSERT INTO users (id, full_name, username, email, password_hash, role, account_status, must_change_password)
-      VALUES (?, ?, ?, ?, ?, 'participant', 'active', 0)
-    `).run(userId, full_name, username, email, passwordHash);
+  await query.transaction(async (tx) => {
+    await tx.run(
+      `INSERT INTO users (id, full_name, username, email, password_hash, role, account_status, must_change_password, created_at)
+       VALUES (?, ?, ?, ?, ?, 'participant', 'active', 0, ?)`,
+      [userId, full_name, username, email, passwordHash, nowIso]
+    );
 
     if (existingParticipant) {
-      db.prepare(`
-        UPDATE participants
-        SET user_id = ?, full_name = ?, email = ?, contact_number = ?, department_or_course = ?, year_level = ?, role = ?
-        WHERE id = ?
-      `).run(userId, full_name, email, contact_number, department_or_course, year_level, participant_type, existingParticipant.id);
+      await tx.run(
+        `UPDATE participants
+         SET user_id = ?, full_name = ?, email = ?, contact_number = ?, department_or_course = ?, year_level = ?, role = ?
+         WHERE id = ?`,
+        [userId, full_name, email, contact_number, department_or_course, year_level, participant_type, existingParticipant.id]
+      );
     } else {
-      db.prepare(`
-        INSERT INTO participants (id, user_id, school_id, full_name, email, contact_number, department_or_course, year_level, role)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(uuidv4(), userId, school_id, full_name, email, contact_number, department_or_course, year_level, participant_type);
+      await tx.run(
+        `INSERT INTO participants (id, user_id, school_id, full_name, email, contact_number, department_or_course, year_level, role, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), userId, school_id, full_name, email, contact_number, department_or_course, year_level, participant_type, nowIso]
+      );
     }
   });
 
-  tx();
-
-  const user = sanitizeUser(db.prepare(`SELECT * FROM users WHERE id = ?`).get(userId));
-  const participant = db.prepare(`SELECT * FROM participants WHERE user_id = ?`).get(userId);
-  logActivity({
+  const user = sanitizeUser(await query.get(`SELECT * FROM users WHERE id = ?`, [userId]));
+  const participant = await query.get(`SELECT * FROM participants WHERE user_id = ?`, [userId]);
+  await logActivity({
     userId,
     action: 'ACCOUNT_SIGNUP',
     description: `Participant ${username} (${school_id}) created an account.`
@@ -247,7 +254,7 @@ function signupParticipant(payload) {
 /**
  * Authenticate a user by username or email + password
  */
-function loginUser({ usernameOrEmail, password, ip = null, userAgent = null }) {
+async function loginUser({ usernameOrEmail, password, ip = null, userAgent = null }) {
   const identifier = String(usernameOrEmail || '').trim().toLowerCase();
   if (!identifier || !password) {
     throw domainError('INVALID_INPUT', 'Username/email and password are required.', 400);
@@ -255,13 +262,14 @@ function loginUser({ usernameOrEmail, password, ip = null, userAgent = null }) {
 
   checkLoginRateLimit(ip, identifier);
 
-  const userRow = db.prepare(`
-    SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ?
-  `).get(identifier, identifier);
+  const userRow = await query.get(
+    `SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ?`,
+    [identifier, identifier]
+  );
 
   if (!userRow || !bcrypt.compareSync(password, userRow.password_hash)) {
     recordFailedLoginAttempt(ip, identifier);
-    logActivity({
+    await logActivity({
       userId: userRow ? userRow.id : null,
       action: 'LOGIN_FAILED',
       description: `Failed login attempt for "${identifier}" from ${ip || 'unknown'}.`
@@ -270,7 +278,7 @@ function loginUser({ usernameOrEmail, password, ip = null, userAgent = null }) {
   }
 
   if (userRow.account_status !== 'active') {
-    logActivity({
+    await logActivity({
       userId: userRow.id,
       action: 'LOGIN_BLOCKED',
       description: `Inactive account "${userRow.username}" attempted login.`
@@ -279,10 +287,10 @@ function loginUser({ usernameOrEmail, password, ip = null, userAgent = null }) {
   }
 
   clearLoginRateLimit(ip, identifier);
-  const { sessionId, expiresAt } = createSession(userRow.id, { ip, userAgent });
-  const participant = db.prepare(`SELECT * FROM participants WHERE user_id = ?`).get(userRow.id) || null;
+  const { sessionId, expiresAt } = await createSession(userRow.id, { ip, userAgent });
+  const participant = (await query.get(`SELECT * FROM participants WHERE user_id = ?`, [userRow.id])) || null;
 
-  logActivity({
+  await logActivity({
     userId: userRow.id,
     action: 'LOGIN',
     description: `${userRow.role} "${userRow.username}" logged in from ${ip || 'unknown'}.`
@@ -299,7 +307,7 @@ function loginUser({ usernameOrEmail, password, ip = null, userAgent = null }) {
 /**
  * Create an Administrator account (only called by CLI script or existing Admin)
  */
-function createAdministrator({ full_name, username, email, password, actorUserId = null }) {
+async function createAdministrator({ full_name, username, email, password, actorUserId = null }) {
   const cleanName = String(full_name || username || 'Administrator').trim();
   const cleanUser = String(username || '').trim().toLowerCase();
   const cleanEmail = String(email || '').trim().toLowerCase();
@@ -315,28 +323,29 @@ function createAdministrator({ full_name, username, email, password, actorUserId
   }
   validatePasswordPolicy(password);
 
-  const existing = db.prepare(`SELECT id FROM users WHERE lower(username) = ? OR lower(email) = ?`).get(cleanUser, cleanEmail);
+  const existing = await query.get(`SELECT id FROM users WHERE lower(username) = ? OR lower(email) = ?`, [cleanUser, cleanEmail]);
   if (existing) {
     throw domainError('DUPLICATE_ACCOUNT', 'An account with that username or email already exists.', 409);
   }
 
   const id = uuidv4();
   const passwordHash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
-  db.prepare(`
-    INSERT INTO users (id, full_name, username, email, password_hash, role, account_status, must_change_password)
-    VALUES (?, ?, ?, ?, ?, 'administrator', 'active', 0)
-  `).run(id, cleanName, cleanUser, cleanEmail, passwordHash);
+  await query.run(
+    `INSERT INTO users (id, full_name, username, email, password_hash, role, account_status, must_change_password, created_at)
+     VALUES (?, ?, ?, ?, ?, 'administrator', 'active', 0, ?)`,
+    [id, cleanName, cleanUser, cleanEmail, passwordHash, new Date().toISOString()]
+  );
 
-  logActivity({
+  await logActivity({
     userId: actorUserId || id,
     action: 'ADMIN_CREATED',
     description: `Administrator account "${cleanUser}" created.`
   });
 
-  return sanitizeUser(db.prepare(`SELECT * FROM users WHERE id = ?`).get(id));
+  return sanitizeUser(await query.get(`SELECT * FROM users WHERE id = ?`, [id]));
 }
 
-function listUsers({ role = null, status = null } = {}) {
+async function listUsers({ role = null, status = null } = {}) {
   const conditions = [];
   const params = [];
   if (role) {
@@ -348,62 +357,65 @@ function listUsers({ role = null, status = null } = {}) {
     params.push(status);
   }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  return db.prepare(`
-    SELECT
+  const rows = await query.all(
+    `SELECT
       u.id, u.full_name, u.username, u.email, u.role, u.account_status, u.must_change_password, u.created_at,
       p.id AS participant_id, p.school_id, p.department_or_course, p.year_level, p.contact_number
     FROM users u
     LEFT JOIN participants p ON p.user_id = u.id
     ${where}
-    ORDER BY u.created_at DESC
-  `).all(...params).map(r => ({
+    ORDER BY u.created_at DESC`,
+    params
+  );
+
+  return rows.map((r) => ({
     ...r,
     must_change_password: Boolean(r.must_change_password)
   }));
 }
 
-function setAccountStatus(targetUserId, newStatus, actorUserId) {
+async function setAccountStatus(targetUserId, newStatus, actorUserId) {
   if (!['active', 'inactive'].includes(newStatus)) {
     throw domainError('INVALID_INPUT', 'account_status must be active or inactive.', 400);
   }
   if (targetUserId === actorUserId && newStatus === 'inactive') {
     throw domainError('CANNOT_DEACTIVATE_SELF', 'You cannot deactivate your own active administrator account.', 400);
   }
-  const target = db.prepare(`SELECT * FROM users WHERE id = ?`).get(targetUserId);
+  const target = await query.get(`SELECT * FROM users WHERE id = ?`, [targetUserId]);
   if (!target) {
     throw domainError('NOT_FOUND', 'Account not found.', 404);
   }
-  db.prepare(`UPDATE users SET account_status = ? WHERE id = ?`).run(newStatus, targetUserId);
+  await query.run(`UPDATE users SET account_status = ? WHERE id = ?`, [newStatus, targetUserId]);
   if (newStatus === 'inactive') {
-    deleteUserSessions(targetUserId);
+    await deleteUserSessions(targetUserId);
   }
-  logActivity({
+  await logActivity({
     userId: actorUserId,
     action: newStatus === 'active' ? 'ACCOUNT_REACTIVATED' : 'ACCOUNT_DEACTIVATED',
     description: `Set account "${target.username}" status to ${newStatus}.`
   });
-  return sanitizeUser(db.prepare(`SELECT * FROM users WHERE id = ?`).get(targetUserId));
+  return sanitizeUser(await query.get(`SELECT * FROM users WHERE id = ?`, [targetUserId]));
 }
 
-function resetUserPassword(targetUserId, tempPassword, actorUserId) {
+async function resetUserPassword(targetUserId, tempPassword, actorUserId) {
   validatePasswordPolicy(tempPassword);
-  const target = db.prepare(`SELECT * FROM users WHERE id = ?`).get(targetUserId);
+  const target = await query.get(`SELECT * FROM users WHERE id = ?`, [targetUserId]);
   if (!target) {
     throw domainError('NOT_FOUND', 'Account not found.', 404);
   }
   const hash = bcrypt.hashSync(tempPassword, BCRYPT_ROUNDS);
-  db.prepare(`UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?`).run(hash, targetUserId);
-  deleteUserSessions(targetUserId);
-  logActivity({
+  await query.run(`UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?`, [hash, targetUserId]);
+  await deleteUserSessions(targetUserId);
+  await logActivity({
     userId: actorUserId,
     action: 'PASSWORD_RESET',
     description: `Reset password for "${target.username}" (temporary password set).`
   });
-  return sanitizeUser(db.prepare(`SELECT * FROM users WHERE id = ?`).get(targetUserId));
+  return sanitizeUser(await query.get(`SELECT * FROM users WHERE id = ?`, [targetUserId]));
 }
 
-function changeOwnPassword(userId, currentPassword, newPassword) {
-  const userRow = db.prepare(`SELECT * FROM users WHERE id = ?`).get(userId);
+async function changeOwnPassword(userId, currentPassword, newPassword) {
+  const userRow = await query.get(`SELECT * FROM users WHERE id = ?`, [userId]);
   if (!userRow) {
     throw domainError('NOT_FOUND', 'User not found.', 404);
   }
@@ -412,13 +424,13 @@ function changeOwnPassword(userId, currentPassword, newPassword) {
   }
   validatePasswordPolicy(newPassword);
   const hash = bcrypt.hashSync(newPassword, BCRYPT_ROUNDS);
-  db.prepare(`UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?`).run(hash, userId);
-  logActivity({
+  await query.run(`UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?`, [hash, userId]);
+  await logActivity({
     userId,
     action: 'PASSWORD_CHANGED',
     description: `User "${userRow.username}" updated their password.`
   });
-  return sanitizeUser(db.prepare(`SELECT * FROM users WHERE id = ?`).get(userId));
+  return sanitizeUser(await query.get(`SELECT * FROM users WHERE id = ?`, [userId]));
 }
 
 module.exports = {

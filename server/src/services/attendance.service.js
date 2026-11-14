@@ -1,9 +1,9 @@
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('../db/connection');
+const { query } = require('../db/connection');
 const { verifySignedQrToken } = require('../utils/crypto');
 const { logActivity } = require('./activity.service');
 
-function verifyAndCheckIn({
+async function verifyAndCheckIn({
   eventId,
   qrToken,
   clientScanId = uuidv4(),
@@ -33,42 +33,10 @@ function verifyAndCheckIn({
     };
   }
 
-  const getEventStmt = db.prepare(`SELECT * FROM events WHERE id = ?`);
-  const getRegStmt = db.prepare(`
-    SELECT r.*, p.school_id, p.full_name, p.email, p.department_or_course, p.year_level, p.role, p.user_id AS participant_user_id
-    FROM registrations r
-    JOIN participants p ON r.participant_id = p.id
-    WHERE r.id = ?
-  `);
-  const getAttendanceByClientScanStmt = db.prepare(`
-    SELECT a.*, p.full_name, p.school_id
-    FROM attendance a
-    JOIN registrations r ON a.registration_id = r.id
-    JOIN participants p ON r.participant_id = p.id
-    WHERE a.client_scan_id = ?
-  `);
-  const getExistingAttendanceStmt = db.prepare(`
-    SELECT a.*, p.full_name, p.school_id, p.department_or_course
-    FROM attendance a
-    JOIN registrations r ON a.registration_id = r.id
-    JOIN participants p ON r.participant_id = p.id
-    WHERE a.registration_id = ?
-  `);
-
-  const insertAttendanceStmt = db.prepare(`
-    INSERT INTO attendance (id, registration_id, event_id, checked_in_at, scanned_by_node, verified_by_user_id, client_scan_id, was_offline_sync)
-    VALUES (?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?, ?, ?)
-  `);
-
-  const auditStmt = db.prepare(`
-    INSERT INTO audit_log (id, action, entity, entity_id, node_id, details_json)
-    VALUES (?, 'CHECK_IN', 'ATTENDANCE', ?, ?, ?)
-  `);
-
   let finalResult = null;
 
-  const checkInTx = db.transaction(() => {
-    const event = getEventStmt.get(eventId);
+  await query.transaction(async (tx) => {
+    const event = await tx.get(`SELECT * FROM events WHERE id = ?`, [eventId]);
     if (!event) {
       finalResult = {
         status: 'EVENT_NOT_FOUND',
@@ -89,7 +57,18 @@ function verifyAndCheckIn({
       return;
     }
 
-    const registration = getRegStmt.get(registrationId);
+    const regSql = tx.isPostgres
+      ? `SELECT r.*, p.school_id, p.full_name, p.email, p.department_or_course, p.year_level, p.role, p.user_id AS participant_user_id
+         FROM registrations r
+         JOIN participants p ON r.participant_id = p.id
+         WHERE r.id = ?
+         FOR UPDATE OF r`
+      : `SELECT r.*, p.school_id, p.full_name, p.email, p.department_or_course, p.year_level, p.role, p.user_id AS participant_user_id
+         FROM registrations r
+         JOIN participants p ON r.participant_id = p.id
+         WHERE r.id = ?`;
+    const registration = await tx.get(regSql, [registrationId]);
+
     if (!registration) {
       finalResult = {
         status: 'REGISTRATION_NOT_FOUND',
@@ -100,7 +79,7 @@ function verifyAndCheckIn({
       return;
     }
 
-    if ((registration.token_version || 1) !== tokenVersion) {
+    if (Number(registration.token_version || 1) !== tokenVersion) {
       finalResult = {
         status: 'INVALID_TOKEN',
         code: 400,
@@ -124,7 +103,15 @@ function verifyAndCheckIn({
       return;
     }
 
-    const existingScan = getAttendanceByClientScanStmt.get(clientScanId);
+    const existingScan = await tx.get(
+      `SELECT a.*, p.full_name, p.school_id
+       FROM attendance a
+       JOIN registrations r ON a.registration_id = r.id
+       JOIN participants p ON r.participant_id = p.id
+       WHERE a.client_scan_id = ?`,
+      [clientScanId]
+    );
+
     if (existingScan) {
       finalResult = {
         status: 'VALID',
@@ -143,7 +130,15 @@ function verifyAndCheckIn({
       return;
     }
 
-    const existingAttendance = getExistingAttendanceStmt.get(registrationId);
+    const existingAttendance = await tx.get(
+      `SELECT a.*, p.full_name, p.school_id, p.department_or_course
+       FROM attendance a
+       JOIN registrations r ON a.registration_id = r.id
+       JOIN participants p ON r.participant_id = p.id
+       WHERE a.registration_id = ?`,
+      [registrationId]
+    );
+
     if (existingAttendance) {
       finalResult = {
         status: 'ALREADY_CHECKED_IN',
@@ -162,26 +157,21 @@ function verifyAndCheckIn({
 
     const attendanceId = uuidv4();
     const isOffline = wasOfflineSync ? 1 : 0;
+    const checkedInAt = scannedAt || new Date().toISOString();
 
-    insertAttendanceStmt.run(
-      attendanceId,
-      registrationId,
-      eventId,
-      scannedAt,
-      scannedByNode,
-      verifiedByUserId || null,
-      clientScanId,
-      isOffline
+    await tx.run(
+      `INSERT INTO attendance (id, registration_id, event_id, checked_in_at, scanned_by_node, verified_by_user_id, client_scan_id, was_offline_sync)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [attendanceId, registrationId, eventId, checkedInAt, scannedByNode, verifiedByUserId || null, clientScanId, isOffline]
     );
 
-    auditStmt.run(
-      uuidv4(),
-      attendanceId,
-      scannedByNode,
-      JSON.stringify({ eventId, registrationId, clientScanId, wasOfflineSync, verifiedByUserId })
+    await tx.run(
+      `INSERT INTO audit_log (id, action, entity, entity_id, node_id, timestamp, details_json)
+       VALUES (?, 'CHECK_IN', 'ATTENDANCE', ?, ?, ?, ?)`,
+      [uuidv4(), attendanceId, scannedByNode, new Date().toISOString(), JSON.stringify({ eventId, registrationId, clientScanId, wasOfflineSync, verifiedByUserId })]
     );
 
-    const recordedAttendance = db.prepare(`SELECT * FROM attendance WHERE id = ?`).get(attendanceId);
+    const recordedAttendance = await tx.get(`SELECT * FROM attendance WHERE id = ?`, [attendanceId]);
 
     finalResult = {
       status: 'VALID',
@@ -207,10 +197,8 @@ function verifyAndCheckIn({
     };
   });
 
-  checkInTx();
-
   if (finalResult && finalResult.status === 'VALID' && !finalResult.isIdempotentReplay) {
-    logActivity({
+    await logActivity({
       userId: verifiedByUserId,
       action: 'ATTENDANCE_SCAN',
       description: `Checked in "${finalResult.participant.fullName}" (${finalResult.participant.schoolId}) for "${finalResult.event.title}".`
@@ -220,7 +208,7 @@ function verifyAndCheckIn({
   return finalResult;
 }
 
-function processSyncBatch(scans = [], scannedByNode = 'node-3', verifiedByUserId = null) {
+async function processSyncBatch(scans = [], scannedByNode = 'node-3', verifiedByUserId = null) {
   if (!Array.isArray(scans) || scans.length === 0) {
     return { syncedCount: 0, results: [] };
   }
@@ -230,7 +218,7 @@ function processSyncBatch(scans = [], scannedByNode = 'node-3', verifiedByUserId
 
   for (const scan of scans) {
     const { eventId, qrToken, clientScanId, scannedAt } = scan;
-    const result = verifyAndCheckIn({
+    const result = await verifyAndCheckIn({
       eventId,
       qrToken,
       clientScanId,
@@ -253,7 +241,7 @@ function processSyncBatch(scans = [], scannedByNode = 'node-3', verifiedByUserId
   };
 }
 
-function manualCheckIn({
+async function manualCheckIn({
   eventId,
   schoolId,
   clientScanId = uuidv4(),
@@ -269,12 +257,13 @@ function manualCheckIn({
     };
   }
 
-  const reg = db.prepare(`
-    SELECT r.id, r.qr_token, r.status
-    FROM registrations r
-    JOIN participants p ON r.participant_id = p.id
-    WHERE r.event_id = ? AND p.school_id = ?
-  `).get(eventId, String(schoolId).trim());
+  const reg = await query.get(
+    `SELECT r.id, r.qr_token, r.status
+     FROM registrations r
+     JOIN participants p ON r.participant_id = p.id
+     WHERE r.event_id = ? AND p.school_id = ?`,
+    [eventId, String(schoolId).trim()]
+  );
 
   if (!reg) {
     return {
@@ -296,9 +285,9 @@ function manualCheckIn({
   });
 }
 
-function getLiveAttendance(eventId) {
-  const event = db.prepare(`
-    SELECT 
+async function getLiveAttendance(eventId) {
+  const event = await query.get(
+    `SELECT
       e.*,
       COALESCE(r.reg_count, 0) AS registered_count,
       COALESCE(a.att_count, 0) AS checked_in_count,
@@ -316,13 +305,14 @@ function getLiveAttendance(eventId) {
       WHERE event_id = ?
       GROUP BY event_id
     ) a ON e.id = a.event_id
-    WHERE e.id = ?
-  `).get(eventId, eventId, eventId);
+    WHERE e.id = ?`,
+    [eventId, eventId, eventId]
+  );
 
   if (!event) return null;
 
-  const recentCheckIns = db.prepare(`
-    SELECT 
+  const recentCheckIns = await query.all(
+    `SELECT
       a.id,
       a.checked_in_at,
       a.scanned_by_node,
@@ -338,29 +328,32 @@ function getLiveAttendance(eventId) {
     JOIN participants p ON r.participant_id = p.id
     WHERE a.event_id = ?
     ORDER BY a.checked_in_at DESC
-    LIMIT 50
-  `).all(eventId);
+    LIMIT 50`,
+    [eventId]
+  );
 
-  const attendanceRate = event.registered_count > 0
-    ? Math.round((event.checked_in_count / event.registered_count) * 1000) / 10
+  const registeredCount = Number(event.registered_count || 0);
+  const checkedInCount = Number(event.checked_in_count || 0);
+  const attendanceRate = registeredCount > 0
+    ? Math.round((checkedInCount / registeredCount) * 1000) / 10
     : 0;
 
   return {
     eventId: event.id,
     title: event.title,
     status: event.status,
-    capacity: event.capacity,
-    registeredCount: event.registered_count,
-    checkedInCount: event.checked_in_count,
-    remainingCapacity: event.remaining_capacity,
+    capacity: Number(event.capacity),
+    registeredCount,
+    checkedInCount,
+    remainingCapacity: Number(event.remaining_capacity ?? event.capacity),
     attendanceRate,
     recentCheckIns
   };
 }
 
-function getAttendanceByUser(userId) {
-  return db.prepare(`
-    SELECT
+async function getAttendanceByUser(userId) {
+  return query.all(
+    `SELECT
       r.id AS registration_id,
       r.status AS registration_status,
       r.registered_at,
@@ -384,8 +377,9 @@ function getAttendanceByUser(userId) {
     JOIN events e ON r.event_id = e.id
     LEFT JOIN attendance a ON r.id = a.registration_id
     WHERE p.user_id = ?
-    ORDER BY e.event_date DESC, r.registered_at DESC
-  `).all(userId);
+    ORDER BY e.event_date DESC, r.registered_at DESC`,
+    [userId]
+  );
 }
 
 module.exports = {

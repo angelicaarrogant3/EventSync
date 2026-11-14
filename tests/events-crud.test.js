@@ -5,7 +5,7 @@
 
 const http = require('http');
 const assert = require('assert');
-const { initializeDatabase, db } = require('../server/src/db/connection');
+const { initializeDatabase, query } = require('../server/src/db/connection');
 const app = require('../server/src/app');
 const { initializeSockets } = require('../server/src/sockets/socketManager');
 const { createAdministrator, createSession } = require('../server/src/services/auth.service');
@@ -145,15 +145,15 @@ async function runCrudTests() {
   console.log('   EVENTSYNC: EVENT CRUD, SAFE DELETE & LIVE BROADCAST TESTS    ');
   console.log('================================================================\n');
 
-  initializeDatabase();
+  await initializeDatabase();
   const testUsername = `crud_admin_${Date.now()}`;
-  const adminUser = createAdministrator({
+  const adminUser = await createAdministrator({
     full_name: 'CRUD Test Admin',
     username: testUsername,
     email: `${testUsername}@eventsync.test`,
     password: 'TestPassword123!'
   });
-  const { sessionId } = createSession(adminUser.id);
+  const { sessionId } = await createSession(adminUser.id);
   testAdminCookie = `eventsync_sid=${sessionId}`;
 
   const server = http.createServer(app);
@@ -338,7 +338,7 @@ async function runCrudTests() {
 
     // 8. Audit Log & Live Socket.IO Broadcasts
     console.log('\n8. Verifying audit_log entries & live Socket.IO broadcasts...');
-    const auditRows = db.prepare(`SELECT action FROM audit_log WHERE entity = 'EVENT' AND entity_id IN (?, ?)`).all(ev1.id, ev2.id);
+    const auditRows = await query.all(`SELECT action FROM audit_log WHERE entity = 'EVENT' AND entity_id IN (?, ?)`, [ev1.id, ev2.id]);
     const actions = auditRows.map(r => r.action);
     assert(actions.includes('CREATE'), 'audit_log must contain CREATE');
     assert(actions.includes('UPDATE'), 'audit_log must contain UPDATE');

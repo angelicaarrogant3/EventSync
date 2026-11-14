@@ -3,7 +3,7 @@ const readline = require('readline');
 const { v4: uuidv4 } = require('uuid');
 
 require('../server/src/config');
-const { db, initializeDatabase } = require('../server/src/db/connection');
+const { query, initializeDatabase, closeDatabase } = require('../server/src/db/connection');
 const { generateSignedQrToken } = require('../server/src/utils/crypto');
 const { createAdministrator, signupParticipant } = require('../server/src/services/auth.service');
 
@@ -30,31 +30,25 @@ async function runSeed() {
   }
 
   console.log('[Seed] Initializing database schema...');
-  initializeDatabase();
+  await initializeDatabase();
 
   // Clear existing tables for a clean seed
   console.log('[Seed] Clearing existing tables...');
-  db.exec(`
-    DELETE FROM activity_logs;
-    DELETE FROM audit_log;
-    DELETE FROM attendance;
-    DELETE FROM registrations;
-    DELETE FROM participants;
-    DELETE FROM events;
-  `);
-  if (isDemo) {
-    db.exec(`
-      DELETE FROM sessions;
-      DELETE FROM users;
-    `);
-  }
+  await query.transaction(async (tx) => {
+    await tx.run('DELETE FROM activity_logs');
+    await tx.run('DELETE FROM audit_log');
+    await tx.run('DELETE FROM attendance');
+    await tx.run('DELETE FROM registrations');
+    await tx.run('DELETE FROM participants');
+    await tx.run('DELETE FROM events');
+    if (isDemo) {
+      await tx.run('DELETE FROM sessions');
+      await tx.run('DELETE FROM users');
+    }
+  });
 
-// 1. Seed Events
-console.log('[Seed] Inserting 3 university events...');
-const insertEvent = db.prepare(`
-  INSERT INTO events (id, title, description, venue, event_date, start_time, end_time, capacity, status)
-  VALUES (@id, @title, @description, @venue, @event_date, @start_time, @end_time, @capacity, @status)
-`);
+  // 1. Seed Events
+  console.log('[Seed] Inserting 3 university events...');
 
 const event1Id = 'e1111111-1111-4111-a111-111111111111';
 const event2Id = 'e2222222-2222-4222-a222-222222222222';
@@ -97,15 +91,15 @@ const events = [
 ];
 
 for (const ev of events) {
-  insertEvent.run(ev);
+  await query.run(
+    `INSERT INTO events (id, title, description, venue, event_date, start_time, end_time, capacity, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [ev.id, ev.title, ev.description, ev.venue, ev.event_date, ev.start_time, ev.end_time, ev.capacity, ev.status]
+  );
 }
 
 // 2. Seed 40 Participants
 console.log('[Seed] Generating 40 realistic student, faculty, and staff profiles...');
-const insertParticipant = db.prepare(`
-  INSERT INTO participants (id, school_id, full_name, email, department_or_course, year_level, role)
-  VALUES (@id, @school_id, @full_name, @email, @department_or_course, @year_level, @role)
-`);
 
 const rawParticipants = [
   // Students (BSCS)
@@ -166,21 +160,16 @@ const rawParticipants = [
 const participantMap = new Map();
 for (const p of rawParticipants) {
   const pId = uuidv4();
-  insertParticipant.run({ id: pId, ...p });
+  await query.run(
+    `INSERT INTO participants (id, school_id, full_name, email, department_or_course, year_level, role)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [pId, p.school_id, p.full_name, p.email, p.department_or_course, p.year_level, p.role]
+  );
   participantMap.set(p.school_id, { id: pId, ...p });
 }
 
 // 3. Seed Registrations for Event 1 (25 participants)
 console.log('[Seed] Seeding 25 registrations for Event 1...');
-const insertRegistration = db.prepare(`
-  INSERT INTO registrations (id, event_id, participant_id, qr_token, status, registered_at, registered_by_node)
-  VALUES (@id, @event_id, @participant_id, @qr_token, 'REGISTERED', @registered_at, 'node-2')
-`);
-
-const insertAttendance = db.prepare(`
-  INSERT INTO attendance (id, registration_id, event_id, checked_in_at, scanned_by_node, client_scan_id, was_offline_sync)
-  VALUES (@id, @registration_id, @event_id, @checked_in_at, 'node-3', @client_scan_id, @was_offline_sync)
-`);
 
 const event1Participants = rawParticipants.slice(0, 25);
 const event1Registrations = [];
@@ -194,13 +183,11 @@ for (let i = 0; i < event1Participants.length; i++) {
   const regMinutesAgo = 60 - i * 2;
   const regTime = new Date(Date.now() - regMinutesAgo * 60000).toISOString().replace('T', ' ').substring(0, 19);
 
-  insertRegistration.run({
-    id: regId,
-    event_id: event1Id,
-    participant_id: p.id,
-    qr_token: qrToken,
-    registered_at: regTime
-  });
+  await query.run(
+    `INSERT INTO registrations (id, event_id, participant_id, qr_token, status, registered_at, registered_by_node)
+     VALUES (?, ?, ?, ?, 'REGISTERED', ?, 'node-2')`,
+    [regId, event1Id, p.id, qrToken, regTime]
+  );
 
   event1Registrations.push({
     regId,
@@ -216,14 +203,11 @@ for (let i = 0; i < event1Participants.length; i++) {
     const clientScanId = uuidv4();
     const wasOffline = (i % 5 === 0) ? 1 : 0; // demonstrate offline sync flag
 
-    insertAttendance.run({
-      id: uuidv4(),
-      registration_id: regId,
-      event_id: event1Id,
-      checked_in_at: attTime,
-      client_scan_id: clientScanId,
-      was_offline_sync: wasOffline
-    });
+    await query.run(
+      `INSERT INTO attendance (id, registration_id, event_id, checked_in_at, scanned_by_node, client_scan_id, was_offline_sync)
+       VALUES (?, ?, ?, ?, 'node-3', ?, ?)`,
+      [uuidv4(), regId, event1Id, attTime, clientScanId, wasOffline]
+    );
   }
 }
 
@@ -235,27 +219,25 @@ for (let i = 0; i < event2Participants.length; i++) {
   const regId = uuidv4();
   const qrToken = generateSignedQrToken(regId, event2Id);
 
-  insertRegistration.run({
-    id: regId,
-    event_id: event2Id,
-    participant_id: p.id,
-    qr_token: qrToken,
-    registered_at: new Date(Date.now() - (120 - i * 5) * 60000).toISOString().replace('T', ' ').substring(0, 19)
-  });
+  await query.run(
+    `INSERT INTO registrations (id, event_id, participant_id, qr_token, status, registered_at, registered_by_node)
+     VALUES (?, ?, ?, ?, 'REGISTERED', ?, 'node-2')`,
+    [regId, event2Id, p.id, qrToken, new Date(Date.now() - (120 - i * 5) * 60000).toISOString().replace('T', ' ').substring(0, 19)]
+  );
 }
 
 if (isDemo) {
   const demoAdminPass = process.env.DEMO_ADMIN_PASSWORD || 'DemoAdmin123!';
   const demoPartPass = process.env.DEMO_PARTICIPANT_PASSWORD || 'DemoUser123!';
 
-  createAdministrator({
+  await createAdministrator({
     full_name: 'Demo Administrator',
     username: 'demoadmin',
     email: 'demoadmin@eventsync.local',
     password: demoAdminPass
   });
 
-  signupParticipant({
+  await signupParticipant({
     full_name: 'Demo Participant',
     username: 'demouser',
     email: 'demouser@eventsync.local',
@@ -290,7 +272,7 @@ console.log(`- Full Name:  ${event1Registrations[0].fullName}`);
 console.log(`- Event:      CS & IT Tech Summit 2026`);
 console.log('================================================================\n');
 
-db.close();
+await closeDatabase();
 }
 
 runSeed().catch(err => {

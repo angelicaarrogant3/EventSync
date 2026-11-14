@@ -1,36 +1,145 @@
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
 const config = require('../config');
 
-// Ensure database directory exists
-const dbDir = path.dirname(config.dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
+const isPostgres = Boolean(config.databaseUrl);
 
-// Open SQLite database connection
-const db = new Database(config.dbPath);
-
-// Distributed Systems PRAGMAs: WAL mode, foreign keys, busy timeout
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-db.pragma('busy_timeout = 5000');
-db.pragma('synchronous = NORMAL');
+let db = null;
+let pool = null;
 
 /**
- * Helper to check if a column exists on a table
+ * Convert SQLite-style `?` placeholders to PostgreSQL `$1, $2, ...`
+ * while skipping `?` inside single-quoted string literals.
  */
+function toPgParamsSql(sql) {
+  let index = 0;
+  let inSingleQuote = false;
+  let out = '';
+
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    if (ch === "'") {
+      if (inSingleQuote && sql[i + 1] === "'") {
+        out += "''";
+        i++;
+        continue;
+      }
+      inSingleQuote = !inSingleQuote;
+      out += ch;
+      continue;
+    }
+    if (ch === '?' && !inSingleQuote) {
+      index += 1;
+      out += `$${index}`;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+if (isPostgres) {
+  const { Pool } = require('pg');
+  const isLocalPg = /localhost|127\.0\.0\.1/.test(config.databaseUrl);
+  pool = new Pool({
+    connectionString: config.databaseUrl,
+    ssl: isLocalPg ? false : { rejectUnauthorized: false },
+    max: 10
+  });
+} else {
+  const Database = require('better-sqlite3');
+  const dbDir = path.dirname(config.dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+  db = new Database(config.dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  db.pragma('busy_timeout = 5000');
+  db.pragma('synchronous = NORMAL');
+}
+
+function makeExecutor(pgClient = null) {
+  if (isPostgres) {
+    const runner = pgClient || pool;
+    return {
+      isPostgres: true,
+      async get(sql, params = []) {
+        const res = await runner.query(toPgParamsSql(sql), params);
+        return res.rows[0];
+      },
+      async all(sql, params = []) {
+        const res = await runner.query(toPgParamsSql(sql), params);
+        return res.rows;
+      },
+      async run(sql, params = []) {
+        const res = await runner.query(toPgParamsSql(sql), params);
+        return { changes: res.rowCount || 0, lastInsertRowid: null };
+      }
+    };
+  }
+
+  return {
+    isPostgres: false,
+    async get(sql, params = []) {
+      return db.prepare(sql).get(...params);
+    },
+    async all(sql, params = []) {
+      return db.prepare(sql).all(...params);
+    },
+    async run(sql, params = []) {
+      const info = db.prepare(sql).run(...params);
+      return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
+    }
+  };
+}
+
+const baseExec = makeExecutor();
+
+const query = {
+  isPostgres,
+  get: baseExec.get,
+  all: baseExec.all,
+  run: baseExec.run,
+  async transaction(fn) {
+    if (isPostgres) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const tx = makeExecutor(client);
+        const result = await fn(tx);
+        await client.query('COMMIT');
+        return result;
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = await fn(baseExec);
+      db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // Ignore rollback error if already rolled back
+      }
+      throw err;
+    }
+  }
+};
+
 function hasColumn(tableName, columnName) {
   const cols = db.prepare(`PRAGMA table_info(${tableName})`).all();
-  return cols.some(c => c.name === columnName);
+  return cols.some((c) => c.name === columnName);
 }
 
-/**
- * Safely migrate existing tables without losing any data
- */
 function runSafeMigrations() {
-  // 1. node_status columns
   if (!hasColumn('node_status', 'device_type')) {
     db.exec(`ALTER TABLE node_status ADD COLUMN device_type TEXT NOT NULL DEFAULT 'laptop'`);
     console.log('[DB] Migrated node_status: added device_type');
@@ -40,7 +149,6 @@ function runSafeMigrations() {
     console.log('[DB] Migrated node_status: added device_name');
   }
 
-  // 2. events columns & expanded status CHECK constraint
   if (!hasColumn('events', 'archived')) {
     db.exec(`ALTER TABLE events ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0, 1))`);
     console.log('[DB] Migrated events: added archived');
@@ -54,7 +162,6 @@ function runSafeMigrations() {
     console.log('[DB] Migrated events: added registration_deadline');
   }
 
-  // Check if events table CHECK constraint needs expansion for ONGOING/COMPLETED/CANCELLED
   const evSqlRow = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='events'`).get();
   if (evSqlRow && evSqlRow.sql && !evSqlRow.sql.includes("'CANCELLED'")) {
     console.log('[DB] Migrating events table CHECK constraint to support ONGOING, COMPLETED, CANCELLED...');
@@ -87,7 +194,6 @@ function runSafeMigrations() {
     console.log('[DB] Migrated events table successfully (all rows preserved).');
   }
 
-  // 3. participants columns
   if (!hasColumn('participants', 'user_id')) {
     db.exec(`ALTER TABLE participants ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL`);
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_user_id_uq ON participants(user_id) WHERE user_id IS NOT NULL`);
@@ -98,7 +204,6 @@ function runSafeMigrations() {
     console.log('[DB] Migrated participants: added contact_number');
   }
 
-  // 4. registrations columns
   if (!hasColumn('registrations', 'registered_by_user_id')) {
     db.exec(`ALTER TABLE registrations ADD COLUMN registered_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL`);
     console.log('[DB] Migrated registrations: added registered_by_user_id');
@@ -108,57 +213,69 @@ function runSafeMigrations() {
     console.log('[DB] Migrated registrations: added token_version');
   }
 
-  // 5. attendance columns
   if (!hasColumn('attendance', 'verified_by_user_id')) {
     db.exec(`ALTER TABLE attendance ADD COLUMN verified_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL`);
     console.log('[DB] Migrated attendance: added verified_by_user_id');
   }
 }
 
-/**
- * Initialize schema and apply non-destructive migrations
- */
-function initializeDatabase() {
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-
-  // Execute DDL script
-  db.exec(schemaSql);
-
-  try {
-    runSafeMigrations();
-  } catch (migErr) {
-    console.warn('[DB] Migration warning:', migErr.message);
+async function initializeDatabase() {
+  if (isPostgres) {
+    const schemaPath = path.join(__dirname, 'schema.postgres.sql');
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    await pool.query(schemaSql);
+  } else {
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    db.exec(schemaSql);
+    try {
+      runSafeMigrations();
+    } catch (migErr) {
+      console.warn('[DB] Migration warning:', migErr.message);
+    }
   }
 
-  // Pre-register cluster nodes in node_status table for initial discovery
+  const nowIso = new Date().toISOString();
   const defaultNodes = [
-    { nodeId: 'node-1', role: 'SERVER', deviceType: 'server', deviceName: 'Laptop 1 (Central Server)', status: 'ONLINE', ip: '127.0.0.1' },
-    { nodeId: 'node-2', role: 'REGISTRATION', deviceType: 'laptop', deviceName: 'Registration Station (Default)', status: 'OFFLINE', ip: 'pending' },
-    { nodeId: 'node-3', role: 'SCANNER', deviceType: 'phone', deviceName: 'Scanner Station (Default)', status: 'OFFLINE', ip: 'pending' },
-    { nodeId: 'node-4', role: 'ORGANIZER', deviceType: 'tablet', deviceName: 'Organizer Console (Default)', status: 'OFFLINE', ip: 'pending' }
+    ['node-1', 'SERVER', 'server', 'Laptop 1 (Central Server)', nowIso, 'ONLINE', '127.0.0.1'],
+    ['node-2', 'REGISTRATION', 'laptop', 'Registration Station (Default)', nowIso, 'OFFLINE', 'pending'],
+    ['node-3', 'SCANNER', 'phone', 'Scanner Station (Default)', nowIso, 'OFFLINE', 'pending'],
+    ['node-4', 'ORGANIZER', 'tablet', 'Organizer Console (Default)', nowIso, 'OFFLINE', 'pending']
   ];
 
-  const insertNode = db.prepare(`
-    INSERT INTO node_status (node_id, role, device_type, device_name, last_seen, status, ip_address)
-    VALUES (@nodeId, @role, @deviceType, @deviceName, datetime('now', 'localtime'), @status, @ip)
-    ON CONFLICT(node_id) DO UPDATE SET
-      role = excluded.role,
-      device_type = COALESCE(excluded.device_type, node_status.device_type),
-      device_name = COALESCE(excluded.device_name, node_status.device_name)
-  `);
-
-  const initClusterTx = db.transaction((nodes) => {
-    for (const node of nodes) {
-      insertNode.run(node);
+  await query.transaction(async (tx) => {
+    for (const node of defaultNodes) {
+      await tx.run(
+        `INSERT INTO node_status (node_id, role, device_type, device_name, last_seen, status, ip_address)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(node_id) DO UPDATE SET
+           role = excluded.role,
+           device_type = COALESCE(excluded.device_type, node_status.device_type),
+           device_name = COALESCE(excluded.device_name, node_status.device_name)`,
+        node
+      );
     }
   });
 
-  initClusterTx(defaultNodes);
-  console.log('[DB] SQLite database initialized in WAL mode at:', config.dbPath);
+  if (isPostgres) {
+    console.log('[DB] Connected to Supabase PostgreSQL.');
+  } else {
+    console.log('[DB] SQLite database initialized in WAL mode at:', config.dbPath);
+  }
+}
+
+async function closeDatabase() {
+  if (pool) {
+    await pool.end();
+  } else if (db) {
+    db.close();
+  }
 }
 
 module.exports = {
   db,
-  initializeDatabase
+  query,
+  isPostgres,
+  initializeDatabase,
+  closeDatabase
 };

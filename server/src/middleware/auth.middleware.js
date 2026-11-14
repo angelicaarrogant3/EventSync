@@ -54,20 +54,24 @@ function clearSessionCookie(res) {
 /**
  * Attach authenticated user & participant (if any) to req
  */
-function attachSession(req, res, next) {
-  const cookies = parseCookies(req.headers.cookie);
-  const sid = cookies[SESSION_COOKIE_NAME];
-  if (sid) {
-    const sess = getSession(sid, { touch: true });
-    if (sess) {
-      req.sessionId = sess.sessionId;
-      req.user = sess.user;
-      req.participant = sess.participant;
-    } else {
-      clearSessionCookie(res);
+async function attachSession(req, res, next) {
+  try {
+    const cookies = parseCookies(req.headers.cookie);
+    const sid = cookies[SESSION_COOKIE_NAME];
+    if (sid) {
+      const sess = await getSession(sid, { touch: true });
+      if (sess) {
+        req.sessionId = sess.sessionId;
+        req.user = sess.user;
+        req.participant = sess.participant;
+      } else {
+        clearSessionCookie(res);
+      }
     }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 }
 
 function isApiRequest(req) {

@@ -69,6 +69,7 @@ const config = {
   host: process.env.HOST || '0.0.0.0',
   serverHost: process.env.SERVER_HOST || null,
   useHttps,
+  databaseUrl: (process.env.DATABASE_URL || '').trim(),
   dbPath: path.resolve(rootDir, process.env.DB_PATH || 'data/eventsync.db'),
   sessionSecret: getRequiredSecret('SESSION_SECRET'),
   sessionTimeoutMinutes: parseInt(process.env.SESSION_TIMEOUT_MINUTES || '120', 10),

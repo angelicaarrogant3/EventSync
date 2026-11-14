@@ -9,7 +9,7 @@
 const readline = require('readline');
 
 require('../server/src/config');
-const { initializeDatabase } = require('../server/src/db/connection');
+const { initializeDatabase, closeDatabase } = require('../server/src/db/connection');
 const { createAdministrator } = require('../server/src/services/auth.service');
 
 function ask(rl, question, { silent = false } = {}) {
@@ -47,7 +47,7 @@ function ask(rl, question, { silent = false } = {}) {
 }
 
 async function main() {
-  initializeDatabase();
+  await initializeDatabase();
 
   let username = process.env.ADMIN_USERNAME ? process.env.ADMIN_USERNAME.trim() : '';
   let email = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.trim() : '';
@@ -72,7 +72,7 @@ async function main() {
     }
   }
 
-  const admin = createAdministrator({
+  const admin = await createAdministrator({
     full_name: fullName || 'System Administrator',
     username,
     email,
@@ -83,6 +83,7 @@ async function main() {
   console.log(`  Username: ${admin.username}`);
   console.log(`  Email:    ${admin.email}`);
   console.log(`  Role:     ${admin.role}\n`);
+  await closeDatabase();
 }
 
 main().catch((err) => {

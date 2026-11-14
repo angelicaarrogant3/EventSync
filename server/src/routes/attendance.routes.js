@@ -6,9 +6,9 @@ const { success, error } = require('../utils/response');
 const { broadcastAttendanceCheckedIn } = require('../sockets/socketManager');
 const { requireRole } = require('../middleware/auth.middleware');
 
-function emitAttendanceUpdate(result, eventId) {
+async function emitAttendanceUpdate(result, eventId) {
   if (result.status === 'VALID' && !result.isIdempotentReplay) {
-    const stats = getEventStats(eventId);
+    const stats = await getEventStats(eventId);
     broadcastAttendanceCheckedIn({
       eventId,
       attendance: result.attendance,
@@ -21,7 +21,7 @@ function emitAttendanceUpdate(result, eventId) {
 }
 
 // POST /api/attendance/scan (Admin only)
-router.post('/attendance/scan', requireRole('administrator'), (req, res, next) => {
+router.post('/attendance/scan', requireRole('administrator'), async (req, res, next) => {
   try {
     const { eventId, qrToken, clientScanId, scannedAt } = req.body;
     if (!eventId || !qrToken) {
@@ -29,7 +29,7 @@ router.post('/attendance/scan', requireRole('administrator'), (req, res, next) =
     }
 
     const nodeId = req.headers['x-node-id'] || 'node-3';
-    const result = attendanceService.verifyAndCheckIn({
+    const result = await attendanceService.verifyAndCheckIn({
       eventId,
       qrToken,
       clientScanId,
@@ -39,7 +39,7 @@ router.post('/attendance/scan', requireRole('administrator'), (req, res, next) =
       wasOfflineSync: false
     });
 
-    emitAttendanceUpdate(result, eventId);
+    await emitAttendanceUpdate(result, eventId);
 
     if (result.status === 'ALREADY_CHECKED_IN') {
       return res.status(409).json({
@@ -70,7 +70,7 @@ router.post('/attendance/scan', requireRole('administrator'), (req, res, next) =
 });
 
 // POST /api/attendance/sync (Admin only)
-router.post('/attendance/sync', requireRole('administrator'), (req, res, next) => {
+router.post('/attendance/sync', requireRole('administrator'), async (req, res, next) => {
   try {
     const scans = req.body;
     if (!Array.isArray(scans)) {
@@ -78,11 +78,11 @@ router.post('/attendance/sync', requireRole('administrator'), (req, res, next) =
     }
 
     const nodeId = req.headers['x-node-id'] || 'node-3';
-    const syncReport = attendanceService.processSyncBatch(scans, nodeId, req.user.id);
+    const syncReport = await attendanceService.processSyncBatch(scans, nodeId, req.user.id);
 
     for (const item of syncReport.results) {
       if (item.status === 'VALID' && !item.isIdempotentReplay) {
-        emitAttendanceUpdate(item, item.attendance.event_id);
+        await emitAttendanceUpdate(item, item.attendance.event_id);
       }
     }
 
@@ -93,7 +93,7 @@ router.post('/attendance/sync', requireRole('administrator'), (req, res, next) =
 });
 
 // POST /api/attendance/manual (Admin only)
-router.post('/attendance/manual', requireRole('administrator'), (req, res, next) => {
+router.post('/attendance/manual', requireRole('administrator'), async (req, res, next) => {
   try {
     const { eventId, schoolId, clientScanId } = req.body;
     if (!eventId || !schoolId) {
@@ -101,7 +101,7 @@ router.post('/attendance/manual', requireRole('administrator'), (req, res, next)
     }
 
     const nodeId = req.headers['x-node-id'] || 'node-3';
-    const result = attendanceService.manualCheckIn({
+    const result = await attendanceService.manualCheckIn({
       eventId,
       schoolId,
       clientScanId,
@@ -109,7 +109,7 @@ router.post('/attendance/manual', requireRole('administrator'), (req, res, next)
       verifiedByUserId: req.user.id
     });
 
-    emitAttendanceUpdate(result, eventId);
+    await emitAttendanceUpdate(result, eventId);
 
     if (result.status === 'ALREADY_CHECKED_IN') {
       return res.status(409).json({
@@ -140,13 +140,13 @@ router.post('/attendance/manual', requireRole('administrator'), (req, res, next)
 });
 
 // GET /api/attendance/live?eventId=... (Admin only, used by organizer dashboard)
-router.get('/attendance/live', requireRole('administrator'), (req, res, next) => {
+router.get('/attendance/live', requireRole('administrator'), async (req, res, next) => {
   try {
     const { eventId } = req.query;
     if (!eventId) {
       return error(res, 'INVALID_INPUT', 'eventId query parameter is required', 400);
     }
-    const data = attendanceService.getLiveAttendance(eventId);
+    const data = await attendanceService.getLiveAttendance(eventId);
     return success(res, data, 200);
   } catch (err) {
     next(err);

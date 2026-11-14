@@ -1,6 +1,6 @@
 const PDFDocument = require('pdfkit');
 const XLSX = require('xlsx');
-const { db } = require('../db/connection');
+const { query } = require('../db/connection');
 const { getEventById, listEvents } = require('./events.service');
 
 /**
@@ -8,15 +8,15 @@ const { getEventById, listEvents } = require('./events.service');
  * Participants are only marked ABSENT once the event is COMPLETED (or ENDED);
  * before completion, unchecked-in registrants are marked PENDING.
  */
-function getEventReportData(eventId) {
-  const event = getEventById(eventId);
+async function getEventReportData(eventId) {
+  const event = await getEventById(eventId);
   if (!event) return null;
 
   const isCompleted = ['COMPLETED', 'ENDED'].includes(event.status);
   const unvisitedLabel = isCompleted ? 'ABSENT' : 'PENDING';
 
-  const query = `
-    SELECT 
+  const attendees = await query.all(
+    `SELECT
       p.school_id,
       p.full_name,
       p.email,
@@ -37,10 +37,9 @@ function getEventReportData(eventId) {
     JOIN participants p ON r.participant_id = p.id
     LEFT JOIN attendance a ON r.id = a.registration_id
     WHERE r.event_id = ? AND r.status = 'REGISTERED'
-    ORDER BY (a.id IS NOT NULL) DESC, a.checked_in_at ASC, p.full_name ASC
-  `;
-
-  const attendees = db.prepare(query).all(unvisitedLabel, eventId);
+    ORDER BY CASE WHEN a.id IS NOT NULL THEN 0 ELSE 1 END ASC, a.checked_in_at ASC, p.full_name ASC`,
+    [unvisitedLabel, eventId]
+  );
 
   const presentCount = attendees.filter(a => a.status === 'PRESENT').length;
   const absentCount = isCompleted ? attendees.filter(a => a.status === 'ABSENT').length : 0;
@@ -67,8 +66,8 @@ function getEventReportData(eventId) {
 /**
  * Aggregate summary across events (with optional date range) matching dashboard totals
  */
-function getSummaryReport({ fromDate = null, toDate = null } = {}) {
-  const allEvents = listEvents(null, false);
+async function getSummaryReport({ fromDate = null, toDate = null } = {}) {
+  const allEvents = await listEvents(null, false);
   const filtered = allEvents.filter(ev => {
     if (fromDate && ev.event_date < fromDate) return false;
     if (toDate && ev.event_date > toDate) return false;
@@ -129,8 +128,8 @@ function getSummaryReport({ fromDate = null, toDate = null } = {}) {
 /**
  * Generate CSV Report string with UTF-8 BOM
  */
-function generateCsvReport(eventId) {
-  const data = getEventReportData(eventId);
+async function generateCsvReport(eventId) {
+  const data = await getEventReportData(eventId);
   if (!data) return null;
 
   const headers = [
@@ -183,8 +182,8 @@ function generateCsvReport(eventId) {
 /**
  * Generate Excel (.xlsx) Buffer using SheetJS
  */
-function generateXlsxReport(eventId) {
-  const data = getEventReportData(eventId);
+async function generateXlsxReport(eventId) {
+  const data = await getEventReportData(eventId);
   if (!data) return null;
 
   const wb = XLSX.utils.book_new();
@@ -228,8 +227,8 @@ function generateXlsxReport(eventId) {
 /**
  * Stream formatted PDF Report using pdfkit
  */
-function streamPdfReport(eventId, writableStream) {
-  const data = getEventReportData(eventId);
+async function streamPdfReport(eventId, writableStream) {
+  const data = await getEventReportData(eventId);
   if (!data) return false;
 
   const doc = new PDFDocument({
@@ -248,22 +247,22 @@ function streamPdfReport(eventId, writableStream) {
   const secondaryColor = '#475569';
 
   doc.fillColor(primaryColor)
-     .fontSize(22)
-     .font('Helvetica-Bold')
-     .text('EventSync Attendance Report', 40, 40);
+    .fontSize(22)
+    .font('Helvetica-Bold')
+    .text('EventSync Attendance Report', 40, 40);
 
   doc.fillColor(secondaryColor)
-     .fontSize(10)
-     .font('Helvetica')
-     .text(`Generated on ${new Date().toLocaleString()}`, 40, 68);
+    .fontSize(10)
+    .font('Helvetica')
+    .text(`Generated on ${new Date().toLocaleString()}`, 40, 68);
 
   doc.moveTo(40, 85).lineTo(555, 85).strokeColor('#cbd5e1').stroke();
 
   doc.rect(40, 95, 515, 65).fillAndStroke('#f8fafc', '#e2e8f0');
   doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(14).text(data.event.title, 50, 105);
   doc.fillColor(secondaryColor).font('Helvetica').fontSize(9)
-     .text(`Venue: ${data.event.venue}   |   Date: ${data.event.event_date}   |   Time: ${data.event.start_time} - ${data.event.end_time}`, 50, 125)
-     .text(`Status: ${data.event.status}   |   Total Capacity: ${data.event.capacity} seats`, 50, 140);
+    .text(`Venue: ${data.event.venue}   |   Date: ${data.event.event_date}   |   Time: ${data.event.start_time} - ${data.event.end_time}`, 50, 125)
+    .text(`Status: ${data.event.status}   |   Total Capacity: ${data.event.capacity} seats`, 50, 140);
 
   const boxY = 170;
   const boxWidth = 120;
