@@ -71,6 +71,30 @@ export function watch(tables, cb) {
   return ch;
 }
 
+export function initPasswordEyes(root = document) {
+  root.querySelectorAll('input[type="password"]').forEach(input => {
+    if (input.closest('.pw-wrap')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'pw-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pw-eye';
+    btn.setAttribute('aria-label', 'Show password');
+    btn.setAttribute('aria-pressed', 'false');
+    btn.innerHTML = ICONS.eye(18);
+    btn.onclick = () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      btn.setAttribute('aria-pressed', String(show));
+      btn.innerHTML = show ? ICONS.eyeOff(18) : ICONS.eye(18);
+    };
+    wrap.appendChild(btn);
+  });
+}
+
 export function csvDownload(filename, rows) {
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });

@@ -1,6 +1,6 @@
 import { COURSES, OTHER_COURSE, MEMBER_TYPES, YEAR_LEVELS, PRIVACY_TEXT, MIN_PASSWORD } from '/js/shared/participant-options.js';
 import { validateParticipant, passwordIssues } from '/js/shared/validation.js';
-import { esc } from '/js/core/ui.js';
+import { esc, initPasswordEyes } from '/js/core/ui.js';
 
 const field = (id, label, control, hint = '') =>
   `<div class="fld" data-f="${id}"><label for="pf_${id}">${label}</label>${control}${hint ? `<small class="muted">${hint}</small>` : ''}<div class="ferr" id="err_${id}" role="alert"></div></div>`;
@@ -20,7 +20,7 @@ export function mountParticipantForm(root, { consentLabel = PRIVACY_TEXT } = {})
       <input id="pf_course_other" placeholder="Type your course / department" maxlength="60" hidden style="margin-top:.4rem">`)}
     <div id="pf_year_wrap" hidden>${field('year_level', 'Year level *', `<select id="pf_year_level"><option value="">Select…</option>${YEAR_LEVELS.map(y => `<option value="${y.value}">${y.label}</option>`).join('')}</select>`)}</div>
     ${field('section', 'Section (optional)', '<input id="pf_section" maxlength="30">')}
-    <div class="pf-span">${field('password', 'Password *', `<div class="pwrow"><input id="pf_password" type="password" autocomplete="new-password"><button type="button" class="btn ghost sm" id="pf_toggle" aria-label="Show or hide password">Show</button></div>`,
+    <div class="pf-span">${field('password', 'Password *', '<input id="pf_password" type="password" autocomplete="new-password">',
       `Min ${MIN_PASSWORD} characters, with letters and numbers.`)}
     <ul class="pwrules" id="pf_rules"></ul></div>
     <div class="pf-span">${field('confirm_password', 'Confirm password *', '<input id="pf_confirm_password" type="password" autocomplete="new-password">')}</div>
@@ -37,11 +37,7 @@ export function mountParticipantForm(root, { consentLabel = PRIVACY_TEXT } = {})
     root.querySelector('#pf_rules').innerHTML = all.map(r => `<li class="${pw && !bad.includes(r) ? 'ok' : ''}">${r}</li>`).join('');
   };
   $('member_type').onchange = sync; $('course').onchange = sync; $('password').oninput = rules;
-  $('toggle').onclick = () => {
-    const show = $('password').type === 'password';
-    $('password').type = $('confirm_password').type = show ? 'text' : 'password';
-    $('toggle').textContent = show ? 'Hide' : 'Show';
-  };
+  initPasswordEyes(root);
   sync(); rules();
 
   const values = () => ({

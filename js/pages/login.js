@@ -1,7 +1,8 @@
 import { supabase, configMissing } from '/js/core/supabase.js';
 import { homeFor } from '/js/core/boot.js';
-import { errMsg, $ } from '/js/core/ui.js';
+import { errMsg, $, initPasswordEyes } from '/js/core/ui.js';
 
+initPasswordEyes();
 const msg = $('#msg');
 if (configMissing) msg.innerHTML = '<div class="err">Supabase is not configured. Edit js/config.js (see README).</div>';
 else if (new URLSearchParams(location.search).get('deactivated') === '1') {

@@ -1,5 +1,5 @@
 import { supabase, configMissing } from '/js/core/supabase.js';
-import { startNetworkMonitor, esc, toast, errMsg } from '/js/core/ui.js';
+import { startNetworkMonitor, esc, toast, errMsg, initPasswordEyes } from '/js/core/ui.js';
 import { passwordIssues } from '/js/shared/validation.js';
 import { ICONS } from '/js/shared/icons.js';
 
@@ -96,6 +96,7 @@ async function enforcePasswordChange() {
       </div>
     </form>`;
   document.body.appendChild(dlg);
+  initPasswordEyes(dlg);
   dlg.addEventListener('cancel', e => e.preventDefault());
   dlg.querySelector('#fpwOut').onclick = logout;
   dlg.showModal();

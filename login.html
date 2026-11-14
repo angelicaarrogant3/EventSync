@@ -19,18 +19,11 @@
   <form id="f">
     <label for="email">Email</label><input id="email" type="email" required autocomplete="email" placeholder="you@school.edu.ph">
     <label for="password">Password</label>
-    <div class="pwrow">
-      <input id="password" type="password" required autocomplete="current-password" placeholder="Enter your password">
-      <button type="button" class="btn ghost sm" id="togglePw" aria-label="Show or hide password">Show</button>
-    </div>
+    <input id="password" type="password" required autocomplete="current-password" placeholder="Enter your password">
     <div id="msg"></div>
     <button class="btn" style="width:100%;margin-top:1.15rem" id="go">Log in</button>
   </form>
   <p class="sm muted" style="text-align:center;margin-top:1.1rem">No account? <a href="/signup">Sign up</a> · <a href="/">Home</a></p>
 </div></div>
 <script type="module" src="/js/pages/login.js"></script>
-<script>
-  const tp = document.getElementById('togglePw'), pw = document.getElementById('password');
-  tp.onclick = () => { const s = pw.type === 'password'; pw.type = s ? 'text' : 'password'; tp.textContent = s ? 'Hide' : 'Show'; };
-</script>
 </body></html>

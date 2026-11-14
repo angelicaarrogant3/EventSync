@@ -1,10 +1,11 @@
 import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
-import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
+import { $, esc, fmt, toast, errMsg, watch, initPasswordEyes } from '/js/core/ui.js';
 import { COURSES, OTHER_COURSE, MEMBER_TYPES, YEAR_LEVELS } from '/js/shared/participant-options.js';
 import { PH_CONTACT, passwordIssues } from '/js/shared/validation.js';
 
 const { profile } = await boot('user', 'profile');
+initPasswordEyes();
 
 $('#name').value = profile.full_name || ''; $('#school_id').value = profile.school_id || '(not set - ask an administrator)';
 $('#email').value = profile.email; $('#contact').value = profile.contact_number || ''; $('#section').value = profile.section || '';
