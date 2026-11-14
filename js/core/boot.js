@@ -1,5 +1,6 @@
 import { supabase, configMissing } from '/js/core/supabase.js';
-import { startNetworkMonitor, esc } from '/js/core/ui.js';
+import { startNetworkMonitor, esc, toast, errMsg } from '/js/core/ui.js';
+import { passwordIssues } from '/js/shared/validation.js';
 
 const NAV = {
   admin: [
@@ -8,7 +9,8 @@ const NAV = {
     ['scan', '/admin/scan', 'Scan QR'],
     ['monitor', '/admin/monitor', 'Live Monitor'],
     ['reports', '/admin/reports', 'Reports'],
-    ['logs', '/admin/logs', 'Activity Logs']
+    ['logs', '/admin/logs', 'Activity Logs'],
+    ['users', '/admin/users', 'Users']
   ],
   user: [
     ['events', '/user/events', 'Browse Events'],
@@ -36,6 +38,7 @@ export async function boot(role, active) {
   }
   const profile = await getProfile();
   if (!profile) { location.replace('/login'); await halt(); }
+  if (profile.status === 'inactive') { await supabase.auth.signOut(); location.replace('/login?deactivated=1'); await halt(); }
   if (profile.role !== role) { location.replace(homeFor(profile.role)); await halt(); }
 
   const links = NAV[role].map(([k, href, label]) => `<a href="${href}" class="${k === active ? 'active' : ''}">${label}</a>`).join('');
@@ -54,5 +57,43 @@ export async function boot(role, active) {
   document.body.prepend(shell);
   document.getElementById('logoutBtn').onclick = logout;
   startNetworkMonitor();
+  if (profile.must_change_password) await enforcePasswordChange();
   return { profile };
+}
+
+async function enforcePasswordChange() {
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `
+    <form id="fpwForm" novalidate>
+      <h2>Change your password</h2>
+      <p class="muted sm">An administrator reset your password. Set a new password before continuing.</p>
+      <label for="fpw1">New password</label><input id="fpw1" type="password" autocomplete="new-password" required>
+      <label for="fpw2">Confirm new password</label><input id="fpw2" type="password" autocomplete="new-password" required>
+      <div id="fpwErr"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:1rem">
+        <button type="button" class="btn ghost" id="fpwOut">Logout</button>
+        <button class="btn" id="fpwSave">Update password</button>
+      </div>
+    </form>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener('cancel', e => e.preventDefault());
+  dlg.querySelector('#fpwOut').onclick = logout;
+  dlg.showModal();
+  await new Promise(resolve => {
+    dlg.querySelector('#fpwForm').onsubmit = async ev => {
+      ev.preventDefault();
+      const errBox = dlg.querySelector('#fpwErr'); errBox.innerHTML = '';
+      const p1 = dlg.querySelector('#fpw1').value, p2 = dlg.querySelector('#fpw2').value;
+      const issues = passwordIssues(p1);
+      if (issues.length) { errBox.innerHTML = `<div class="err">Password needs: ${esc(issues.join(', ').toLowerCase())}</div>`; return; }
+      if (p1 !== p2) { errBox.innerHTML = '<div class="err">Passwords do not match</div>'; return; }
+      const btn = dlg.querySelector('#fpwSave'); btn.disabled = true;
+      const { error } = await supabase.auth.updateUser({ password: p1 });
+      if (error) { errBox.innerHTML = `<div class="err">${esc(errMsg(error))}</div>`; btn.disabled = false; return; }
+      const { error: ce } = await supabase.rpc('complete_password_change');
+      if (ce) { errBox.innerHTML = `<div class="err">${esc(errMsg(ce))}</div>`; btn.disabled = false; return; }
+      toast('Password updated', 'success');
+      dlg.close(); dlg.remove(); resolve();
+    };
+  });
 }

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Users - EventSync</title>
+<link rel="stylesheet" href="/css/app.css">
+</head><body>
+<main class="container">
+  <div class="pagehead">
+    <div><h1>Users</h1><p class="muted sm">Overview of all participants and administrators.</p></div>
+    <div class="row">
+      <button class="btn ghost" id="exportXlsx">Export Excel (.xlsx)</button>
+      <button class="btn" id="newAdminBtn">+ New admin</button>
+    </div>
+  </div>
+
+  <div class="stats-5">
+    <div class="card stat"><b id="sTotal">0</b><span>Total users</span></div>
+    <div class="card stat"><b id="sPart">0</b><span>Participants</span></div>
+    <div class="card stat"><b id="sAdmin">0</b><span>Administrators</span></div>
+    <div class="card stat"><b id="sActive">0</b><span>Active accounts</span></div>
+    <div class="card stat"><b id="sWeek">0</b><span>New this week</span></div>
+  </div>
+
+  <div class="row toolbar" style="margin-bottom:1rem">
+    <input id="q" placeholder="Search name, email or school ID" style="flex:1;min-width:220px">
+    <select id="fRole" aria-label="Filter by role">
+      <option value="">All roles</option>
+      <option value="user">Participant</option>
+      <option value="admin">Administrator</option>
+    </select>
+    <select id="fStatus" aria-label="Filter by status">
+      <option value="">All statuses</option>
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+    </select>
+    <select id="fCourse" aria-label="Filter by course">
+      <option value="">All courses</option>
+    </select>
+  </div>
+
+  <div id="list"></div>
+  <div class="row" id="pager" style="justify-content:center;margin-top:1rem" hidden>
+    <span class="muted sm" id="pageInfo"></span>
+    <button class="btn ghost sm" id="loadMore">Load more</button>
+  </div>
+
+  <dialog id="detailDlg" style="width:min(620px,96vw);max-height:92vh;overflow:auto">
+    <div id="detailBody"></div>
+  </dialog>
+
+  <dialog id="adminDlg">
+    <form id="adminForm" novalidate>
+      <h2>Create administrator</h2>
+      <p class="muted sm">Creates a new administrator account. Only administrators can do this.</p>
+      <label for="aName">Full name *</label><input id="aName" required minlength="2">
+      <label for="aEmail">Email *</label><input id="aEmail" type="email" required>
+      <label for="aPw">Password * (min 8 chars, letters &amp; numbers)</label><input id="aPw" type="password" required>
+      <label for="aPw2">Confirm password *</label><input id="aPw2" type="password" required>
+      <div id="aMsg"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:1rem">
+        <button type="button" class="btn ghost" id="aCancel">Cancel</button>
+        <button class="btn" id="aSave">Create admin</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script type="module" src="/js/admin/users.js"></script>
+</body></html>
