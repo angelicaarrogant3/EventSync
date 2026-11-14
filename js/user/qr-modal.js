@@ -1,5 +1,6 @@
 import QRCode from 'https://esm.sh/qrcode@1.5.3';
 import { esc, fmt } from '/js/core/ui.js';
+import { ICONS } from '/js/shared/icons.js';
 
 const cache = new Map();
 export async function qrDataUrl(token, width = 320) {
@@ -18,12 +19,16 @@ export async function openQrModal({ token, title, startsAt, venue, name, schoolI
   }
   const img = await qrDataUrl(token, 320);
   dlg.innerHTML = `
+    <div class="ticket-head">
+      <img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="38" height="25">
+      <b>EventSync Pass</b>
+    </div>
     <h2>${esc(title)}</h2>
-    <p class="muted sm">${fmt(startsAt)}<br>📍 ${esc(venue)}<br>👤 <b>${esc(name)}</b>${schoolId ? `<br><span class="ticket-id">ID: ${esc(schoolId)}${course ? ` · ${esc(course)}` : ''}</span>` : ''}</p>
-    <div class="qrbox"><img alt="Your QR code" src="${img}"></div>
+    <p class="muted sm">${ICONS.clock(14)} ${fmt(startsAt)}<br>${ICONS.pin(14)} ${esc(venue)}<br>${ICONS.user(14)} <b>${esc(name)}</b>${schoolId ? `<br><span class="ticket-id">ID: ${esc(schoolId)}${course ? ` · ${esc(course)}` : ''}</span>` : ''}</p>
+    <div class="qrbox"><div class="qr-frame"><img alt="Your QR code" src="${img}"></div></div>
     <p class="muted sm">Show this code at the entrance.</p>
-    <div class="row" style="justify-content:center;margin-top:.75rem">
-      <button class="btn" id="qrDl">Download PNG</button>
+    <div class="row" style="justify-content:center;margin-top:.85rem">
+      <button class="btn" id="qrDl">${ICONS.download(16)} Download PNG</button>
       <button class="btn ghost" id="qrClose">Close</button>
     </div>`;
   dlg.querySelector('#qrClose').onclick = () => dlg.close();

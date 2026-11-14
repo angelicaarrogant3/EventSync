@@ -2,6 +2,7 @@ import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import { openQrModal } from '/js/user/qr-modal.js';
+import { ICONS } from '/js/shared/icons.js';
 
 const { profile } = await boot('user', 'registrations');
 let rows = [];
@@ -21,11 +22,11 @@ function render() {
     const started = r.events && new Date(r.events.starts_at) <= new Date();
     const label = r.status === 'cancelled' ? ['cancelled', 'Cancelled'] : att ? ['ok', `Attended · ${fmt(att.checked_in_at)}`] : ['registered', 'Registered'];
     const canCancel = r.status === 'registered' && !att && !started;
-    return `<div class="card"><h2>${esc(r.events?.title)}</h2>
-      <p class="muted sm">${fmt(r.events?.starts_at)}<br>📍 ${esc(r.events?.venue)}</p>
+    return `<div class="card hoverable fade-in"><h2>${esc(r.events?.title)}</h2>
+      <p class="muted sm">${ICONS.clock(14)} ${fmt(r.events?.starts_at)}<br>${ICONS.pin(14)} ${esc(r.events?.venue)}</p>
       <p><span class="badge ${label[0]}">${label[1]}</span></p>
       <div class="row">
-        ${r.status === 'registered' ? `<button class="btn" data-qr="${r.id}">View QR</button>` : ''}
+        ${r.status === 'registered' ? `<button class="btn" data-qr="${r.id}">${ICONS.qr(16)} View QR</button>` : ''}
         ${r.status === 'registered' && !att ? `<button class="btn ghost" data-cancel="${r.id}" ${canCancel ? '' : 'disabled title="Cancellation closes when the event starts"'}>Cancel</button>` : ''}
       </div>
       ${r.status === 'registered' && !att && started ? '<p class="muted sm" style="margin:.4rem 0 0">Event started - cancellation is closed.</p>' : ''}</div>`;

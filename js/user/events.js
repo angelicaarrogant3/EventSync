@@ -2,6 +2,7 @@ import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import { openQrModal } from '/js/user/qr-modal.js';
+import { ICONS } from '/js/shared/icons.js';
 
 const { profile } = await boot('user', 'events');
 let events = [];                 // published events (events table => live registered_count)
@@ -26,14 +27,20 @@ function render() {
   $('#list').innerHTML = events.map(e => {
     const s = stateFor(e);
     const left = e.capacity ? Math.max(e.capacity - e.registered_count, 0) : null;
+    const pct = e.capacity ? Math.min(100, Math.round((e.registered_count / e.capacity) * 100)) : 0;
+    const badge = s.kind === 'registered' ? ['registered', 'Registered'] : s.label === 'Full' ? ['closed', 'Full'] : s.kind === 'disabled' ? ['closed', 'Closed'] : ['published', 'Open'];
     let action;
-    if (s.kind === 'registered') action = `<button class="btn" disabled>Registered</button> <button class="btn ghost" data-qr="${e.id}">View QR</button>${s.attended ? ' <span class="badge ok">Attended</span>' : ''}`;
+    if (s.kind === 'registered') action = `<div class="row"><button class="btn" disabled>Registered</button><button class="btn ghost" data-qr="${e.id}">${ICONS.qr(16)} View QR</button>${s.attended ? '<span class="badge ok">Attended</span>' : ''}</div>`;
     else if (s.kind === 'disabled') action = `<button class="btn" disabled title="${esc(s.reason || s.label)}">${s.label}</button>${s.reason ? `<p class="muted sm" style="margin:.4rem 0 0">${esc(s.reason)}</p>` : ''}`;
-    else action = `<button class="btn" data-reg="${e.id}" ${pending.has(e.id) ? 'disabled' : ''}>${pending.has(e.id) ? 'Registering...' : s.label}</button>`;
-    return `<div class="card" data-card="${e.id}"><h2>${esc(e.title)}</h2>
-      <p class="muted sm">${fmt(e.starts_at)} – ${fmt(e.ends_at)}<br>📍 ${esc(e.venue)}${e.registration_deadline ? `<br>⏰ Register by ${fmt(e.registration_deadline)}` : ''}</p>
-      <p class="sm">${esc(e.description || '')}</p>
-      <p class="sm"><b>${e.registered_count}</b> registered${e.capacity ? ` / ${e.capacity} seats · <b>${left}</b> left` : ''}</p>
+    else action = `<button class="btn" data-reg="${e.id}" ${pending.has(e.id) ? 'disabled' : ''}>${pending.has(e.id) ? 'Registering...' : `${s.label} ${ICONS.arrowRight(16)}`}</button>`;
+    return `<div class="card hoverable fade-in" data-card="${e.id}">
+      <div class="stat-top" style="margin-bottom:.5rem"><h2 style="margin:0">${esc(e.title)}</h2><span class="badge ${badge[0]}">${badge[1]}</span></div>
+      <p class="muted sm">${ICONS.clock(14)} ${fmt(e.starts_at)} – ${fmt(e.ends_at)}<br>${ICONS.pin(14)} ${esc(e.venue)}${e.registration_deadline ? `<br><span class="faint">Register by ${fmt(e.registration_deadline)}</span>` : ''}</p>
+      ${e.description ? `<p class="sm">${esc(e.description)}</p>` : ''}
+      <div style="margin:.85rem 0">
+        <p class="sm" style="margin:0 0 .35rem"><b>${e.registered_count}</b> registered${e.capacity ? ` / ${e.capacity} seats · <b>${left}</b> left` : ''}</p>
+        ${e.capacity ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}
+      </div>
       ${action}</div>`;
   }).join('');
 }
