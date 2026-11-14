@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EventSync - Event Registration &amp; Attendance</title>
+<link rel="stylesheet" href="/css/app.css">
+</head><body>
+<section class="hero">
+  <span class="logo" style="font-size:1.2rem">ES</span>
+  <h1>EventSync</h1>
+  <p>A distributed event registration and attendance system. Register on your phone, get a unique QR code, and get verified at the door - all synchronized in real time across every device.</p>
+  <div class="row" style="justify-content:center;margin-top:1rem">
+    <a class="btn" href="/login">Log in</a><a class="btn ghost" href="/signup">Create account</a>
+  </div>
+  <div class="features">
+    <div class="card"><h2>Register</h2><p class="muted sm">Browse published events and reserve a spot instantly.</p></div>
+    <div class="card"><h2>QR check-in</h2><p class="muted sm">Every registration has its own secure QR code.</p></div>
+    <div class="card"><h2>Live monitor</h2><p class="muted sm">Watch attendance update live on any device.</p></div>
+    <div class="card"><h2>Reports</h2><p class="muted sm">Attendance reports, CSV export and audit logs.</p></div>
+  </div>
+</section>
+<script type="module">
+  import { getProfile, homeFor } from '/js/core/boot.js';
+  import { configMissing } from '/js/core/supabase.js';
+  if (!configMissing) { const p = await getProfile().catch(() => null); if (p) location.replace(homeFor(p.role)); }
+</script>
+</body></html>

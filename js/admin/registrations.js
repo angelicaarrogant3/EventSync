@@ -1,0 +1,45 @@
+import { supabase } from '/js/core/supabase.js';
+import { boot } from '/js/core/boot.js';
+import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
+
+await boot('admin', 'registrations');
+let rows = [];
+
+async function loadEvents() {
+  const { data } = await supabase.from('events').select('id,title').order('starts_at', { ascending: false });
+  const cur = $('#ev').value;
+  $('#ev').innerHTML = '<option value="">All events</option>' + (data || []).map(e => `<option value="${e.id}">${esc(e.title)}</option>`).join('');
+  $('#ev').value = cur;
+}
+
+async function load() {
+  let q = supabase.from('registrations').select('id,status,registered_at,event_id,profiles(full_name,email,phone),events(title),attendance(checked_in_at)').order('registered_at', { ascending: false }).limit(1000);
+  if ($('#ev').value) q = q.eq('event_id', $('#ev').value);
+  const { data, error } = await q;
+  if (error) return toast(errMsg(error), 'error');
+  rows = data; render();
+}
+
+function render() {
+  const s = $('#q').value.toLowerCase();
+  const list = rows.filter(r => !s || `${r.profiles?.full_name} ${r.profiles?.email}`.toLowerCase().includes(s));
+  if (!list.length) { $('#list').innerHTML = '<div class="card empty">No registrations found.</div>'; return; }
+  $('#list').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Participant</th><th>Email</th><th>Event</th><th>Registered</th><th>Status</th><th>Attendance</th><th></th></tr></thead><tbody>${list.map(r => {
+    const att = Array.isArray(r.attendance) ? r.attendance[0] : r.attendance;
+    return `<tr><td>${esc(r.profiles?.full_name)}</td><td>${esc(r.profiles?.email)}</td><td>${esc(r.events?.title)}</td><td>${fmt(r.registered_at)}</td>
+    <td><span class="badge ${r.status}">${r.status}</span></td>
+    <td>${att ? `<span class="badge ok">In ${fmt(att.checked_in_at)}</span>` : '<span class="badge">Not yet</span>'}</td>
+    <td>${att ? '' : r.status === 'registered' ? `<button class="btn sm danger" data-id="${r.id}" data-s="cancelled">Cancel</button>` : `<button class="btn sm ok" data-id="${r.id}" data-s="registered">Reinstate</button>`}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+$('#list').onclick = async e => {
+  const b = e.target.closest('button[data-id]'); if (!b) return;
+  b.disabled = true;
+  const { error } = await supabase.rpc('admin_set_registration_status', { p_registration_id: b.dataset.id, p_status: b.dataset.s });
+  if (error) { toast(errMsg(error), 'error'); b.disabled = false; } else { toast('Registration updated', 'success'); load(); }
+};
+$('#ev').onchange = load; $('#q').oninput = render;
+
+await loadEvents(); await load();
+watch(['registrations', 'attendance', 'events'], () => { loadEvents(); load(); });

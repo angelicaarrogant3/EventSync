@@ -1,0 +1,13 @@
+[build]
+  command = "node tools/generate-config.js"
+  publish = "."
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin/events"
+  status = 302
+
+[[redirects]]
+  from = "/user"
+  to = "/user/events"
+  status = 302

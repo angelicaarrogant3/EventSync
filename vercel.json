@@ -1,0 +1,9 @@
+{
+  "buildCommand": "node tools/generate-config.js",
+  "outputDirectory": ".",
+  "cleanUrls": true,
+  "redirects": [
+    { "source": "/admin", "destination": "/admin/events" },
+    { "source": "/user", "destination": "/user/events" }
+  ]
+}

@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profile - EventSync</title>
+<link rel="stylesheet" href="/css/app.css">
+</head><body>
+<main class="container"><div class="pagehead"><div><h1>My Profile</h1></div></div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="card"><h2>Details</h2><form id="form"><label>Email</label><input id="email" disabled><label>Full name</label><input id="name" required minlength="2"><label>Phone</label><input id="phone" type="tel"><button class="btn" style="margin-top:1rem">Save profile</button></form></div><div class="card"><h2>Attendance history</h2><ul class="feed" id="history"></ul></div></div></main>
+<script type="module" src="/js/user/profile.js"></script>
+</body></html>

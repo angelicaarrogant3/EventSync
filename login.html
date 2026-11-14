@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log in - EventSync</title>
+<link rel="stylesheet" href="/css/app.css">
+</head><body>
+<div class="authwrap"><div class="card">
+  <h1>Welcome back</h1><p class="muted sm">Log in to EventSync (admins and participants use the same form).</p>
+  <form id="f">
+    <label for="email">Email</label><input id="email" type="email" required autocomplete="email">
+    <label for="password">Password</label><input id="password" type="password" required autocomplete="current-password">
+    <div id="msg"></div>
+    <button class="btn" style="width:100%;margin-top:1rem" id="go">Log in</button>
+  </form>
+  <p class="sm muted" style="text-align:center">No account? <a href="/signup">Sign up</a></p>
+</div></div>
+<script type="module" src="/js/pages/login.js"></script>
+</body></html>
