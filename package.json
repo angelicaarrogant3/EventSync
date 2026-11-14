@@ -9,6 +9,7 @@
     "start:https": "node -e \"process.env.HTTPS='true'; require('./server/src/index.js');\"",
     "start:info": "node server/src/index.js --info",
     "start:qr": "node server/src/index.js --qr",
+    "share": "node scripts/share.js",
     "create-admin": "node scripts/create-admin.js",
     "seed": "node scripts/seed.js",
     "seed:demo": "node scripts/seed.js --demo",

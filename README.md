@@ -30,6 +30,7 @@ npm start
 | `npm run start:https` | Start EventSync on HTTPS for phone camera QR scanning. |
 | `npm run start:info` | Start and print all network interfaces, `/connect` links, and firewall hint. |
 | `npm run start:qr` | Start and print a terminal QR code for the Network link. |
+| `npm run share` | Start/reuse EventSync and print a public `https://...` link for any network or mobile data. |
 | `npm run create-admin` | Create an Administrator account interactively (or via `ADMIN_*` env vars). |
 | `npm run seed` | Seed sample events and participants without creating any admin account. |
 | `npm run seed:demo` | Seed sample data with a demo admin (`--with-demo-admin`, dev only). |
