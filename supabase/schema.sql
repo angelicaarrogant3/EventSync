@@ -258,3 +258,12 @@ end $$;
 -- ---------- CREATE YOUR FIRST ADMIN ----------
 -- 1) Sign up normally at /signup  2) then run (replace the email):
 --    update public.profiles set role = 'admin' where email = 'you@example.com';
+
+-- ---------- GRANTS (clients get only what RLS then filters) ----------
+grant usage on schema public to authenticated;
+grant select on public.events, public.registrations, public.attendance, public.activity_logs to authenticated;
+grant select, update on public.profiles to authenticated;
+grant insert, update, delete on public.events to authenticated;  -- RLS restricts writes to admins
+revoke all on all tables in schema public from anon;
+revoke truncate, references, trigger on all tables in schema public from authenticated;
+notify pgrst, 'reload schema';
