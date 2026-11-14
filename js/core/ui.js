@@ -1,5 +1,6 @@
 import { CONFIG } from '/js/config.js';
 import { supabase, configMissing } from '/js/core/supabase.js';
+import { ICONS } from '/js/shared/icons.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const fmt = d => d ? new Date(d).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -10,8 +11,11 @@ export const $ = (s, r = document) => r.querySelector(s);
 export function toast(msg, type = 'info', ms = 3500) {
   let box = $('#toasts');
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
+  const ico = type === 'success' ? ICONS.check(18) : type === 'error' ? ICONS.xCircle(18) : ICONS.info(18);
   const t = document.createElement('div');
-  t.className = `toast ${type}`; t.textContent = msg; box.appendChild(t);
+  t.className = `toast ${type}`;
+  t.innerHTML = `${ico}<span>${esc(msg)}</span>`;
+  box.appendChild(t);
   setTimeout(() => t.remove(), ms);
 }
 

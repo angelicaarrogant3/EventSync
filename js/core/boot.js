@@ -1,6 +1,7 @@
 import { supabase, configMissing } from '/js/core/supabase.js';
 import { startNetworkMonitor, esc, toast, errMsg } from '/js/core/ui.js';
 import { passwordIssues } from '/js/shared/validation.js';
+import { ICONS } from '/js/shared/icons.js';
 
 const NAV = {
   admin: [
@@ -45,17 +46,36 @@ export async function boot(role, active) {
   const shell = document.createElement('header');
   shell.className = 'topbar';
   shell.innerHTML = `
-    <div class="topbar-row">
-      <a class="brand" href="${homeFor(role)}"><span class="logo">ES</span> EventSync</a>
+    <div class="nav-pill">
+      <a class="brand" href="${homeFor(role)}">
+        <img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="42" height="28">
+        <span class="brand-text hide-xs">EventSync</span>
+      </a>
+      <nav class="nav-links" aria-label="Main navigation">${links}</nav>
       <div class="topbar-right">
         <span id="netChip" class="chip wait">Connecting</span>
         <span class="who">${esc(profile.full_name || profile.email)}${profile.school_id ? ` <small>${esc(profile.school_id)}</small>` : ''}${profile.course ? ` <small>${esc(profile.course)}</small>` : ''}${role === 'admin' ? ' <small>admin</small>' : ''}</span>
         <button class="btn ghost sm" id="logoutBtn">Logout</button>
+        <button class="nav-burger" id="navBurger" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navDrawer">${ICONS.menu(20)}</button>
       </div>
     </div>
-    <nav class="nav">${links}</nav>`;
+    <nav class="nav-drawer" id="navDrawer" aria-label="Mobile navigation" hidden>
+      ${links}
+      <div class="drawer-meta">
+        <span>${esc(profile.full_name || profile.email)} (${role === 'admin' ? 'Administrator' : 'Participant'})</span>
+      </div>
+    </nav>`;
   document.body.prepend(shell);
   document.getElementById('logoutBtn').onclick = logout;
+  const burger = document.getElementById('navBurger'), drawer = document.getElementById('navDrawer');
+  const setMenu = open => {
+    drawer.hidden = !open;
+    burger.setAttribute('aria-expanded', String(open));
+    burger.innerHTML = open ? ICONS.close(20) : ICONS.menu(20);
+  };
+  burger.onclick = () => setMenu(drawer.hidden);
+  drawer.addEventListener('click', e => { if (e.target.closest('a')) setMenu(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) setMenu(false); });
   startNetworkMonitor();
   if (profile.must_change_password) await enforcePasswordChange();
   return { profile };
