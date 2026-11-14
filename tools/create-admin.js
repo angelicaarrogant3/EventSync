@@ -35,7 +35,7 @@ async function api(path, opts = {}) {
 
   let user;
   try {
-    user = await api('/auth/v1/admin/users', { method: 'POST', body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name } }) });
+    user = await api('/auth/v1/admin/users', { method: 'POST', body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name }, app_metadata: { created_by: 'trusted_tool' } }) });
   } catch (e) {
     if (!/already|registered|exists/i.test(e.message)) throw e;
     const list = await api('/auth/v1/admin/users?per_page=1000');

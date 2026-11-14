@@ -22,7 +22,7 @@ async function mkUser(tag) {
     `insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,
        created_at,updated_at,confirmation_token,recovery_token,email_change_token_new,email_change)
      values ('00000000-0000-0000-0000-000000000000',gen_random_uuid(),'authenticated','authenticated',$1,crypt($2,gen_salt('bf')),now(),
-       '{"provider":"email","providers":["email"]}','{"full_name":"RT Test"}',now(),now(),'','','','') returning id`, [email, PASSWORD])).rows[0].id;
+       '{"provider":"email","providers":["email"],"created_by":"trusted_tool"}','{"full_name":"RT Test"}',now(),now(),'','','','') returning id`, [email, PASSWORD])).rows[0].id;
   await db.query(`insert into auth.identities(id,user_id,identity_data,provider,provider_id,last_sign_in_at,created_at,updated_at)
      values (gen_random_uuid(),$1::uuid,jsonb_build_object('sub',$3::text,'email',$2::text),'email',$3::text,now(),now(),now())`, [id, email, String(id)]);
   userIds.push(id);

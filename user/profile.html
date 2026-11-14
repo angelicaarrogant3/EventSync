@@ -4,6 +4,32 @@
 <title>Profile - EventSync</title>
 <link rel="stylesheet" href="/css/app.css">
 </head><body>
-<main class="container"><div class="pagehead"><div><h1>My Profile</h1></div></div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="card"><h2>Details</h2><form id="form"><label>Email</label><input id="email" disabled><label>Full name</label><input id="name" required minlength="2"><label>Phone</label><input id="phone" type="tel"><button class="btn" style="margin-top:1rem">Save profile</button></form></div><div class="card"><h2>Attendance history</h2><ul class="feed" id="history"></ul></div></div></main>
+<main class="container">
+<div class="pagehead"><div><h1>My Profile</h1><p class="muted sm">School ID and email can only be changed by an administrator.</p></div></div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+  <div class="card"><h2>Details</h2>
+    <form id="form" novalidate>
+      <label>Full name</label><input id="name" required minlength="2">
+      <div class="two"><div><label>School ID</label><input id="school_id" disabled></div><div><label>Email</label><input id="email" disabled></div></div>
+      <label>Contact number</label><input id="contact" type="tel" placeholder="09XXXXXXXXX or +639XXXXXXXXX"><div class="ferr" id="e_contact"></div>
+      <label>I am a</label><select id="member_type"></select>
+      <label>Course / Department</label><select id="course"></select><input id="course_other" hidden placeholder="Type your course / department" style="margin-top:.4rem"><div class="ferr" id="e_course"></div>
+      <div id="year_wrap" hidden><label>Year level</label><select id="year_level"></select><div class="ferr" id="e_year"></div></div>
+      <label>Section</label><input id="section" maxlength="30">
+      <button class="btn" style="margin-top:1rem">Save profile</button>
+    </form>
+  </div>
+  <div>
+    <div class="card"><h2>Change password</h2>
+      <form id="pwform" novalidate>
+        <label>New password</label><input id="pw1" type="password" autocomplete="new-password"><div class="ferr" id="e_pw1"></div>
+        <label>Confirm new password</label><input id="pw2" type="password" autocomplete="new-password"><div class="ferr" id="e_pw2"></div>
+        <button class="btn" style="margin-top:1rem">Update password</button>
+      </form>
+    </div>
+    <div class="card" style="margin-top:1rem"><h2>Attendance history</h2><ul class="feed" id="history"></ul></div>
+  </div>
+</div>
+</main>
 <script type="module" src="/js/user/profile.js"></script>
 </body></html>

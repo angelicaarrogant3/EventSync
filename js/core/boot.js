@@ -46,7 +46,7 @@ export async function boot(role, active) {
       <a class="brand" href="${homeFor(role)}"><span class="logo">ES</span> EventSync</a>
       <div class="topbar-right">
         <span id="netChip" class="chip wait">Connecting</span>
-        <span class="who">${esc(profile.full_name || profile.email)} <small>${role}</small></span>
+        <span class="who">${esc(profile.full_name || profile.email)}${profile.school_id ? ` <small>${esc(profile.school_id)}</small>` : ''}${profile.course ? ` <small>${esc(profile.course)}</small>` : ''}${role === 'admin' ? ' <small>admin</small>' : ''}</span>
         <button class="btn ghost sm" id="logoutBtn">Logout</button>
       </div>
     </div>

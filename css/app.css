@@ -91,3 +91,14 @@ dialog::backdrop{background:rgba(15,20,40,.5)}
 .err{background:#fee2e2;color:var(--bad);padding:.6rem .8rem;border-radius:10px;margin-top:.75rem;font-size:.9rem}
 .okmsg{background:#dcfce7;color:var(--ok);padding:.6rem .8rem;border-radius:10px;margin-top:.75rem;font-size:.9rem}
 @media print{.topbar,.toolbar,#netBanner,.noprint{display:none!important}body{background:#fff}}
+
+/* participant form */
+.fld{margin-top:.2rem}.ferr{color:var(--bad);font-size:.8rem;min-height:0}.ferr:empty{display:none}
+input.bad,select.bad{border-color:var(--bad)}
+.pwrow{display:flex;gap:.4rem}.pwrow input{flex:1}
+.pwrules{list-style:none;margin:.3rem 0 0;padding:0;font-size:.8rem;color:var(--muted)}
+.pwrules li::before{content:"? "}.pwrules li.ok{color:var(--ok)}.pwrules li.ok::before{content:"? "}
+label.check{display:flex;gap:.5rem;align-items:flex-start;font-weight:500;margin-top:1rem}
+label.check input{width:auto;margin-top:.25rem}
+.authwrap .card{width:min(460px,100%)}
+.ticket-id{font-size:.85rem}

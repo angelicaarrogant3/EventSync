@@ -73,3 +73,12 @@ export function csvDownload(filename, rows) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+/** Excel-compatible export (HTML table saved as .xls opens directly in Excel). */
+export function excelDownload(filename, rows) {
+  const cell = (v, th) => `<${th ? 'th' : 'td'} style="mso-number-format:'\\@'">${esc(v)}</${th ? 'th' : 'td'}>`;
+  const html = `<html><head><meta charset="utf-8"></head><body><table border="1">${rows.map((r, i) => `<tr>${r.map(v => cell(v, i === 0)).join('')}</tr>`).join('')}</table></body></html>`;
+  const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}

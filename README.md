@@ -64,3 +64,7 @@ Tables `events`, `registrations`, `attendance`, `activity_logs` are added to the
 
 ## Testing
 See [TESTING.md](TESTING.md) for the multi-device distributed test plan.
+
+## Participant sign-up fields
+The sign-up, profile and admin 'Register a participant' forms share one component (`js/shared/participant-form.js`). Edit the courses, member types and year levels in **one file**: `js/shared/participant-options.js`. Validation rules live in `js/shared/validation.js` (client) and `validate_participant()` in the database (server, authoritative). Run `supabase/migrations/002` and `003` on existing databases (they are also appended to `schema.sql` for new ones). In Supabase -> Authentication -> Sign In / Providers -> Email set **Minimum password length = 8** and **Password requirements = Letters and digits** so the password rule is also enforced by the auth server.
+

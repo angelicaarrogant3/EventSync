@@ -55,7 +55,7 @@ async function load() {
 function showQr(eventId) {
   const e = events.find(x => x.id === eventId), r = mine.get(eventId);
   if (!e || !r) return;
-  openQrModal({ token: r.qr_token, title: e.title, startsAt: e.starts_at, venue: e.venue, name: profile.full_name || profile.email });
+  openQrModal({ token: r.qr_token, title: e.title, startsAt: e.starts_at, venue: e.venue, name: profile.full_name || profile.email, schoolId: profile.school_id, course: profile.course });
 }
 
 $('#list').onclick = async ev => {

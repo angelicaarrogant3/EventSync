@@ -4,12 +4,10 @@
 <title>Sign up - EventSync</title>
 <link rel="stylesheet" href="/css/app.css">
 </head><body>
-<div class="authwrap"><div class="card">
+<div class="authwrap" style="align-items:flex-start"><div class="card" style="margin:1rem 0">
   <h1>Create account</h1><p class="muted sm">Participant accounts only. Admin access is granted by the system owner.</p>
-  <form id="f">
-    <label for="name">Full name</label><input id="name" required minlength="2" autocomplete="name">
-    <label for="email">Email</label><input id="email" type="email" required autocomplete="email">
-    <label for="password">Password (min 6 characters)</label><input id="password" type="password" required minlength="6" autocomplete="new-password">
+  <form id="f" novalidate>
+    <div id="fields"></div>
     <div id="msg"></div>
     <button class="btn" style="width:100%;margin-top:1rem" id="go">Sign up</button>
   </form>

@@ -36,7 +36,7 @@ $('#list').onclick = async e => {
   const q = e.target.closest('button[data-qr]');
   if (q) {
     const r = rows.find(x => x.id === q.dataset.qr);
-    return openQrModal({ token: r.qr_token, title: r.events?.title, startsAt: r.events?.starts_at, venue: r.events?.venue, name: profile.full_name || profile.email });
+    return openQrModal({ token: r.qr_token, title: r.events?.title, startsAt: r.events?.starts_at, venue: r.events?.venue, name: profile.full_name || profile.email, schoolId: profile.school_id, course: profile.course });
   }
   const b = e.target.closest('button[data-cancel]'); if (!b || b.disabled || !confirm('Cancel this registration? Your seat will be released.')) return;
   b.disabled = true;

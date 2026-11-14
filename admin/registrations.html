@@ -4,6 +4,20 @@
 <title>Registrations - EventSync</title>
 <link rel="stylesheet" href="/css/app.css">
 </head><body>
-<main class="container"><div class="pagehead"><div><h1>Registrations</h1><p class="muted sm">Participants per event, with live attendance status.</p></div></div><div class="row toolbar" style="margin-bottom:1rem"><select id="ev"></select><input id="q" placeholder="Search name or email"></div><div id="list"></div></main>
+<main class="container">
+<div class="pagehead"><div><h1>Registrations</h1><p class="muted sm">Participants per event, with live attendance status.</p></div><button class="btn" id="newP">+ Register a participant</button></div>
+<div class="row toolbar" style="margin-bottom:1rem"><select id="ev"></select><input id="q" placeholder="Search name, ID, email or course"></div>
+<div id="list"></div>
+<dialog id="pdlg" style="width:min(540px,96vw);max-height:92vh;overflow:auto">
+  <form id="pform" novalidate>
+    <h2>Register a participant</h2>
+    <p class="muted sm">Creates the account with a temporary password (give it to the participant) using the same fields as public sign-up.</p>
+    <div class="fld"><label for="p_event">Also register for event (optional)</label><select id="p_event"><option value="">— none —</option></select></div>
+    <div id="pfields"></div>
+    <div id="pmsg"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:1rem"><button type="button" class="btn ghost" id="pcancel">Cancel</button><button class="btn" id="psave">Create participant</button></div>
+  </form>
+</dialog>
+</main>
 <script type="module" src="/js/admin/registrations.js"></script>
 </body></html>

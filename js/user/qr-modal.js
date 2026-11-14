@@ -9,7 +9,7 @@ export async function qrDataUrl(token, width = 320) {
 }
 
 /** Opens a modal with the participant's QR + details and a Download PNG button. */
-export async function openQrModal({ token, title, startsAt, venue, name }) {
+export async function openQrModal({ token, title, startsAt, venue, name, schoolId, course }) {
   let dlg = document.getElementById('qrDlg');
   if (!dlg) {
     dlg = document.createElement('dialog'); dlg.id = 'qrDlg'; dlg.style.textAlign = 'center';
@@ -19,7 +19,7 @@ export async function openQrModal({ token, title, startsAt, venue, name }) {
   const img = await qrDataUrl(token, 320);
   dlg.innerHTML = `
     <h2>${esc(title)}</h2>
-    <p class="muted sm">${fmt(startsAt)}<br>📍 ${esc(venue)}<br>👤 ${esc(name)}</p>
+    <p class="muted sm">${fmt(startsAt)}<br>📍 ${esc(venue)}<br>👤 <b>${esc(name)}</b>${schoolId ? `<br><span class="ticket-id">ID: ${esc(schoolId)}${course ? ` · ${esc(course)}` : ''}</span>` : ''}</p>
     <div class="qrbox"><img alt="Your QR code" src="${img}"></div>
     <p class="muted sm">Show this code at the entrance.</p>
     <div class="row" style="justify-content:center;margin-top:.75rem">

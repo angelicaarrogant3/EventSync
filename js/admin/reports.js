@@ -1,9 +1,11 @@
 import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
-import { $, esc, fmt, toast, errMsg, watch, csvDownload } from '/js/core/ui.js';
+import { $, esc, fmt, toast, errMsg, watch, csvDownload, excelDownload } from '/js/core/ui.js';
 
 await boot('admin', 'reports');
 let stats = [], detail = [];
+const HEAD = ['Name', 'School ID', 'Type', 'Course / Department', 'Year', 'Section', 'Contact', 'Email', 'Registration', 'Registered at', 'Checked in at'];
+const asRow = d => [d.name, d.school_id, d.type, d.course, d.year, d.section, d.contact, d.email, d.status, d.registered ? fmt(d.registered) : '', d.checkin ? fmt(d.checkin) : ''];
 
 async function loadEvents() {
   const { data, error } = await supabase.from('event_stats').select('*').order('starts_at', { ascending: false });
@@ -21,22 +23,27 @@ async function loadEvents() {
 async function loadDetail() {
   const id = $('#ev').value;
   if (!id) { detail = []; $('#detail').innerHTML = ''; return; }
-  const { data, error } = await supabase.from('registrations').select('status,registered_at,profiles(full_name,email),attendance(checked_in_at)').eq('event_id', id).order('registered_at');
+  const { data, error } = await supabase.from('registrations')
+    .select('status,registered_at,profiles(full_name,email,school_id,member_type,course,year_level,section,contact_number),attendance(checked_in_at)')
+    .eq('event_id', id).order('registered_at');
   if (error) return toast(errMsg(error), 'error');
-  detail = data.map(r => { const a = Array.isArray(r.attendance) ? r.attendance[0] : r.attendance; return { name: r.profiles?.full_name, email: r.profiles?.email, status: r.status, registered: r.registered_at, checkin: a?.checked_in_at }; });
-  $('#detail').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Name</th><th>Email</th><th>Registration</th><th>Registered at</th><th>Checked in</th></tr></thead><tbody>${detail.map(d => `<tr><td>${esc(d.name)}</td><td>${esc(d.email)}</td><td><span class="badge ${d.status}">${d.status}</span></td><td>${fmt(d.registered)}</td><td>${d.checkin ? fmt(d.checkin) : '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No registrations.</td></tr>'}</tbody></table></div>`;
+  detail = data.map(r => {
+    const a = Array.isArray(r.attendance) ? r.attendance[0] : r.attendance, p = r.profiles || {};
+    return { name: p.full_name, school_id: p.school_id || '', type: p.member_type || '', course: p.course || '', year: p.year_level ?? '', section: p.section || '',
+             contact: p.contact_number || '', email: p.email, status: r.status, registered: r.registered_at, checkin: a?.checked_in_at };
+  });
+  $('#detail').innerHTML = `<div class="tablewrap"><table><thead><tr>${HEAD.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${detail.map(d => `<tr>${asRow(d).map((v, i) => `<td>${i === 8 ? `<span class="badge ${d.status}">${d.status}</span>` : esc(v || '—')}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${HEAD.length}" class="empty">No registrations.</td></tr>`}</tbody></table></div>`;
 }
 
+function exportRows() {
+  const sel = $('#ev').value, ev = stats.find(s => s.id === sel);
+  if (sel) return { name: `attendance-${(ev?.title || 'event').replace(/\W+/g, '_')}`, rows: [HEAD, ...detail.map(asRow)] };
+  return { name: 'eventsync-summary', rows: [['Event', 'Starts', 'Status', 'Registered', 'Attended'], ...stats.map(e => [e.title, e.starts_at, e.status, e.registered_count, e.attended_count])] };
+}
 $('#ev').onchange = loadDetail;
-$('#print').onclick = () => window.print();
-$('#csv').onclick = () => {
-  if ($('#ev').value) {
-    const t = stats.find(s => s.id === $('#ev').value)?.title || 'event';
-    csvDownload(`attendance-${t.replace(/\W+/g, '_')}.csv`, [['Name', 'Email', 'Registration', 'Registered at', 'Checked in at'], ...detail.map(d => [d.name, d.email, d.status, d.registered, d.checkin || ''])]);
-  } else {
-    csvDownload('eventsync-summary.csv', [['Event', 'Starts', 'Status', 'Registered', 'Attended'], ...stats.map(e => [e.title, e.starts_at, e.status, e.registered_count, e.attended_count])]);
-  }
-};
+$('#print').onclick = () => window.print();                       // choose "Save as PDF" in the print dialog
+$('#csv').onclick = () => { const x = exportRows(); csvDownload(x.name + '.csv', x.rows); };
+$('#xls').onclick = () => { const x = exportRows(); excelDownload(x.name + '.xls', x.rows); };
 const refresh = async () => { await loadEvents(); await loadDetail(); };
 await refresh();
 watch(['events', 'registrations', 'attendance'], refresh);
