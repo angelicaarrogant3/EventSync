@@ -6,28 +6,21 @@
 </head><body>
 <main class="container">
   <div class="pagehead">
-    <div><h1>Users</h1><p class="muted sm">Overview of all participants and administrators.</p></div>
+    <div><h1>Users</h1><p class="muted sm">Overview of all participant accounts.</p></div>
     <div class="row">
       <button class="btn ghost" id="exportXlsx">Export Excel (.xlsx)</button>
-      <button class="btn" id="newAdminBtn">+ New admin</button>
     </div>
   </div>
 
-  <div class="stats-5">
-    <div class="card stat"><b id="sTotal">0</b><span>Total users</span></div>
+  <div class="stats">
     <div class="card stat"><b id="sPart">0</b><span>Participants</span></div>
-    <div class="card stat"><b id="sAdmin">0</b><span>Administrators</span></div>
     <div class="card stat"><b id="sActive">0</b><span>Active accounts</span></div>
     <div class="card stat"><b id="sWeek">0</b><span>New this week</span></div>
+    <div class="card stat"><b id="sInactive">0</b><span>Inactive accounts</span></div>
   </div>
 
-  <div class="row toolbar" style="margin-bottom:1rem">
+  <div class="row toolbar" style="margin:1rem 0">
     <input id="q" placeholder="Search name, email or school ID" style="flex:1;min-width:220px">
-    <select id="fRole" aria-label="Filter by role">
-      <option value="">All roles</option>
-      <option value="user">Participant</option>
-      <option value="admin">Administrator</option>
-    </select>
     <select id="fStatus" aria-label="Filter by status">
       <option value="">All statuses</option>
       <option value="active">Active</option>
@@ -46,22 +39,6 @@
 
   <dialog id="detailDlg" style="width:min(620px,96vw);max-height:92vh;overflow:auto">
     <div id="detailBody"></div>
-  </dialog>
-
-  <dialog id="adminDlg">
-    <form id="adminForm" novalidate>
-      <h2>Create administrator</h2>
-      <p class="muted sm">Creates a new administrator account. Only administrators can do this.</p>
-      <label for="aName">Full name *</label><input id="aName" required minlength="2">
-      <label for="aEmail">Email *</label><input id="aEmail" type="email" required>
-      <label for="aPw">Password * (min 8 chars, letters &amp; numbers)</label><input id="aPw" type="password" required>
-      <label for="aPw2">Confirm password *</label><input id="aPw2" type="password" required>
-      <div id="aMsg"></div>
-      <div class="row" style="justify-content:flex-end;margin-top:1rem">
-        <button type="button" class="btn ghost" id="aCancel">Cancel</button>
-        <button class="btn" id="aSave">Create admin</button>
-      </div>
-    </form>
   </dialog>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>

@@ -65,7 +65,8 @@ begin
     select user_id, count(*)::int as att_cnt
     from public.attendance
     group by user_id
-  ) a on a.user_id = p.id;
+  ) a on a.user_id = p.id
+  where p.role = 'user';
 
   return jsonb_build_object('summary', summary, 'users', rows);
 end $$;

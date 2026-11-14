@@ -62,8 +62,9 @@ test('admin_list_users: summary counts match DB and no password/session fields e
            count(*) filter (where created_at >= now() - interval '7 days')::int new_this_week
     from public.profiles`)).rows[0];
   assert.deepEqual(res.summary, dbCounts);
-  assert.equal(res.users.length, dbCounts.total);
+  assert.equal(res.users.length, dbCounts.participants);
   for (const u of res.users) {
+    assert.equal(u.role, 'user', 'admin accounts must not be listed in users');
     assert.equal('encrypted_password' in u, false);
     assert.equal('password_hash' in u, false);
     assert.equal('session' in u, false);
