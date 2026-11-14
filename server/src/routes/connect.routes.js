@@ -38,7 +38,7 @@ router.get('/api/connect-info', async (req, res, next) => {
       port: config.port,
       serverHost: config.serverHost
     });
-    const baseUrl = links.networkUrl;
+    const baseUrl = links.networkUrl || links.localUrl;
 
     const makeQr = async (text) => {
       return await QRCode.toDataURL(text, {

@@ -3,10 +3,19 @@ const https = require('https');
 const QRCode = require('qrcode');
 const app = require('./app');
 const config = require('./config');
-const { initializeDatabase } = require('./db/connection');
+const { initializeDatabase, getDb } = require('./db/connection');
 const { initializeSockets } = require('./sockets/socketManager');
-const { buildStartupLinks, getFirewallHint } = require('./utils/network');
+const {
+  buildStartupLinks,
+  formatStartupBanner,
+  copyToClipboard,
+  getFirewallHint
+} = require('./utils/network');
 const { getOrGenerateCertificates } = require('./utils/cert');
+
+const args = new Set(process.argv.slice(2));
+const showInfo = args.has('--info') || process.env.START_INFO === 'true';
+const showQr = args.has('--qr') || process.env.START_QR === 'true';
 
 // Initialize authoritative SQLite database in WAL mode
 initializeDatabase();
@@ -35,14 +44,11 @@ initializeSockets(server);
 // Friendly port-in-use and network error handling (no raw stack trace)
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`\n[Error] Port ${config.port} is already in use.`);
-    console.error(`  Fix 1 (use another port):  PORT=${config.port + 1} npm start`);
-    console.error(`  Fix 2 (Windows find PID):  netstat -ano | findstr :${config.port}`);
-    console.error(`                             taskkill /PID <PID> /F\n`);
+    console.error(`\nPort ${config.port} is already in use. Close the other EventSync window or run: set PORT=${config.port + 1} && npm start\n`);
     process.exit(1);
   }
   if (err.code === 'EACCES') {
-    console.error(`\n[Error] Permission denied binding to ${config.host}:${config.port}. Try PORT=3000 or higher.\n`);
+    console.error(`\nPermission denied binding to ${config.host}:${config.port}. Try PORT=3000 or higher.\n`);
     process.exit(1);
   }
   console.error(`\n[Error] Server failed to start: ${err.message}\n`);
@@ -57,49 +63,60 @@ server.listen(config.port, config.host, async () => {
     serverHost: config.serverHost
   });
 
-  console.log('\n================ EVENTSYNC IS RUNNING ================');
-  console.log(`  Local (this laptop):    ${links.localUrl}`);
-  console.log(`  On your network:        ${links.networkUrl}   <- open on phones/tablets/other laptops`);
-  if (links.hotspotUrl && links.hotspotUrl !== links.networkUrl) {
-    console.log(`  Hotspot network:        ${links.hotspotUrl}`);
-  }
-  console.log('');
-  console.log(`  Connect page:           ${links.connectUrl}`);
-  console.log(`  Login:                  ${links.loginUrl}`);
-  console.log(`  Sign up (participants): ${links.signupUrl}`);
-
-  if (links.interfaces.length > 0) {
-    console.log('\n  Detected network interfaces:');
-    for (const net of links.interfaces) {
-      const marker = net.address === links.primaryIp ? ' (recommended)' : '';
-      console.log(`    - [${net.interface}] ${net.label}: ${protocol}://${net.address}:${config.port}${marker}`);
-    }
-  }
-
-  // Print terminal QR code for the network connect/login link
+  let hasAdmin = true;
   try {
-    const qrText = await QRCode.toString(links.connectUrl, { type: 'terminal', small: true });
-    console.log('\n  Scan QR to open Connect page on phone:');
-    for (const line of qrText.trimEnd().split('\n')) {
-      console.log('  ' + line);
-    }
+    const row = getDb()
+      .prepare("SELECT 1 FROM users WHERE role = 'administrator' AND account_status = 'active' LIMIT 1")
+      .get();
+    hasAdmin = Boolean(row);
   } catch {
-    // Non-fatal if terminal doesn't support QR rendering
+    hasAdmin = true;
   }
 
-  console.log('');
-  if (protocol === 'http') {
-    console.log('  Camera note: Phone camera QR scanning requires HTTPS (run "npm run start:https" or set HTTPS=true in .env).');
-  } else {
-    console.log('  HTTPS active: If phones warn about the local cert, open /connect to install the Root CA.');
+  const copied = copyToClipboard(links.localUrl);
+  console.log('\n' + formatStartupBanner({ links, copied, hasAdmin }) + '\n');
+
+  if (showQr) {
+    const qrTarget = links.networkUrl || links.localUrl;
+    try {
+      const qrText = await QRCode.toString(qrTarget, { type: 'terminal', small: true });
+      console.log(`   Scan QR to open ${qrTarget}:`);
+      for (const line of qrText.trimEnd().split('\n')) {
+        console.log('   ' + line);
+      }
+      console.log('');
+    } catch {
+      // Non-fatal if terminal doesn't support QR rendering
+    }
   }
-  if (process.platform === 'win32') {
-    console.log(`  Windows Firewall (if phones cannot connect, run in Admin CMD):`);
-    console.log(`    ${getFirewallHint(config.port)}`);
+
+  if (showInfo) {
+    console.log('   Quick Links:');
+    console.log(`     Connect page:           ${links.connectUrl}`);
+    console.log(`     Login:                  ${links.loginUrl}`);
+    console.log(`     Sign up (participants): ${links.signupUrl}`);
+    if (links.hotspotUrl && links.hotspotUrl !== links.networkUrl) {
+      console.log(`     Hotspot network:        ${links.hotspotUrl}`);
+    }
+    if (links.interfaces.length > 0) {
+      console.log('\n   Detected network interfaces:');
+      for (const net of links.interfaces) {
+        const marker = net.address === links.primaryIp ? ' (recommended)' : '';
+        console.log(`     - [${net.interface}] ${net.label}: ${protocol}://${net.address}:${config.port}${marker}`);
+      }
+    }
+    console.log('');
+    if (protocol === 'http') {
+      console.log('   Camera note: Phone camera QR scanning requires HTTPS (run "npm run start:https").');
+    } else {
+      console.log('   HTTPS active: Phones must trust the certificate (open /connect).');
+    }
+    if (process.platform === 'win32') {
+      console.log('   Windows Firewall (if phones cannot connect, run in Admin CMD):');
+      console.log(`     ${getFirewallHint(config.port)}`);
+    }
+    console.log('');
   }
-  console.log('  Phones and laptops must be on the same Wi-Fi/hotspot.');
-  console.log('  Stop the server with Ctrl+C.');
-  console.log('======================================================\n');
 });
 
 // Handle graceful shutdown

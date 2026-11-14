@@ -2,6 +2,10 @@
  * Minimalist HTTP request logger with response time and node identification
  */
 function requestLogger(req, res, next) {
+  if (process.env.LOG_REQUESTS !== 'true') {
+    return next();
+  }
+
   const start = Date.now();
   const nodeId = req.headers['x-node-id'] || 'anonymous';
 
