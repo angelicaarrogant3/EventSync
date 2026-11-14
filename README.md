@@ -39,9 +39,11 @@ eventsync/
    npm install
    npm start        # http://localhost:8080
    ```
-6. **Create the first admin:** sign up at `/signup`, then in the SQL Editor run  
-   `update public.profiles set role = 'admin' where email = 'you@example.com';`  
-   (Roles cannot be changed from the browser.) Log in again → you land on the Admin area.
+6. **Create an admin (terminal only).** Public signup always creates a `user`; there is no admin signup in the UI.
+   `powershell
+   $env:SUPABASE_SERVICE_ROLE_KEY = '<service_role key from Dashboard -> Settings -> API Keys>'
+   npm run create-admin     # prompts for name, email, password
+   ``n   The service-role key stays in your terminal session only - never put it in the app, git, or chat. Log in at `/login`; admins land on `/admin/events`.
 
 ## Access modes
 | Mode | URL | Camera/QR scanning |

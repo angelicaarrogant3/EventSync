@@ -255,9 +255,9 @@ do $$ begin
   begin alter publication supabase_realtime add table public.activity_logs; exception when duplicate_object then null; end;
 end $$;
 
--- ---------- CREATE YOUR FIRST ADMIN ----------
--- 1) Sign up normally at /signup  2) then run (replace the email):
---    update public.profiles set role = 'admin' where email = 'you@example.com';
+-- ---------- ADMINS ----------
+-- Admin accounts are created ONLY from the terminal: npm run create-admin  (see README).
+-- Public signup always produces role 'user'.
 
 -- ---------- GRANTS (clients get only what RLS then filters) ----------
 grant usage on schema public to authenticated;

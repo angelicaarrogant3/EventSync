@@ -6,7 +6,8 @@
   "scripts": {
     "start": "serve . -l 8080 --no-clipboard",
     "tunnel": "npx --yes localtunnel --port 8080",
-    "build": "node tools/generate-config.js"
+    "build": "node tools/generate-config.js",
+    "create-admin": "node tools/create-admin.js"
   },
   "devDependencies": {
     "serve": "^14.2.3"
