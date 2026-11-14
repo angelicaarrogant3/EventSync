@@ -2,8 +2,8 @@ import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import {
-  buildSheetModel, toCsv, buildWorkbook, renderPrintHtml, fmtDate,
-  buildSummaryModel, summaryCsv, summaryWorkbook, attendanceRate
+  buildSheetModel, buildWorkbook, renderPrintHtml, fmtDate,
+  buildSummaryModel, summaryWorkbook, attendanceRate
 } from '/js/shared/sheet.js';
 
 await boot('admin', 'reports');
@@ -37,7 +37,7 @@ async function loadEvents() {
 }
 
 function setExportEnabled(on) {
-  ['#xlsx', '#csv', '#pdf', '#print'].forEach(s => { $(s).disabled = !on; });
+  ['#xlsx', '#pdf'].forEach(s => { $(s).disabled = !on; });
 }
 
 async function fetchSheet(format = null) {
@@ -67,9 +67,7 @@ async function exportEvent(format) {
     if (!model) return;
     $('#detail').innerHTML = `<div class="card sheet-wrap">${renderPrintHtml(model)}</div>`;
     const slug = `${model.eventTitle.replace(/\W+/g, '_').replace(/^_|_$/g, '') || 'event'}-${fmtDate(model.eventStart)}`;
-    if (format === 'csv') {
-      downloadBlob(`attendance-sheet-${slug}.csv`, new Blob([toCsv(model)], { type: 'text/csv;charset=utf-8' }));
-    } else if (format === 'xlsx') {
+    if (format === 'xlsx') {
       if (!window.ExcelJS) throw new Error('Excel library failed to load. Check your connection and reload.');
       const { workbook } = buildWorkbook(window.ExcelJS, model);
       await downloadXlsx(`attendance-sheet-${slug}.xlsx`, workbook);
@@ -79,28 +77,21 @@ async function exportEvent(format) {
   } catch (e) { toast(errMsg(e), 'error'); }
 }
 
-async function exportSummary(format) {
+async function exportSummary() {
   try {
     const m = buildSummaryModel(stats);
-    const { error } = await supabase.rpc('log_export', { p_kind: 'summary_all_events', p_details: { format, events: stats.length } });
+    const { error } = await supabase.rpc('log_export', { p_kind: 'summary_all_events', p_details: { format: 'xlsx', events: stats.length } });
     if (error) throw error;
-    if (format === 'csv') {
-      downloadBlob('eventsync-summary-of-all-events.csv', new Blob([summaryCsv(m)], { type: 'text/csv;charset=utf-8' }));
-    } else {
-      if (!window.ExcelJS) throw new Error('Excel library failed to load. Check your connection and reload.');
-      await downloadXlsx('eventsync-summary-of-all-events.xlsx', summaryWorkbook(window.ExcelJS, m));
-    }
+    if (!window.ExcelJS) throw new Error('Excel library failed to load. Check your connection and reload.');
+    await downloadXlsx('eventsync-summary-of-all-events.xlsx', summaryWorkbook(window.ExcelJS, m));
   } catch (e) { toast(errMsg(e), 'error'); }
 }
 
 $('#ev').onchange = loadDetail;
 $('#filter').onchange = loadDetail;
 $('#xlsx').onclick = () => exportEvent('xlsx');
-$('#csv').onclick = () => exportEvent('csv');
 $('#pdf').onclick = () => exportEvent('pdf');
-$('#print').onclick = () => exportEvent('print');
-$('#sumXlsx').onclick = () => exportSummary('xlsx');
-$('#sumCsv').onclick = () => exportSummary('csv');
+$('#sumXlsx').onclick = () => exportSummary();
 
 const refresh = async () => { await loadEvents(); await loadDetail(); };
 await refresh();
