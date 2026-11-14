@@ -90,7 +90,24 @@ dialog::backdrop{background:rgba(15,20,40,.5)}
 .authwrap .card{width:min(420px,100%)}
 .err{background:#fee2e2;color:var(--bad);padding:.6rem .8rem;border-radius:10px;margin-top:.75rem;font-size:.9rem}
 .okmsg{background:#dcfce7;color:var(--ok);padding:.6rem .8rem;border-radius:10px;margin-top:.75rem;font-size:.9rem}
-@media print{.topbar,.toolbar,#netBanner,.noprint{display:none!important}body{background:#fff}}
+@page{size:A4 landscape;margin:12mm}
+@media print{.topbar,.toolbar,#netBanner,.noprint{display:none!important}body{background:#fff}.container{max-width:none;padding:0}.card.sheet-wrap{border:0;box-shadow:none;padding:0}}
+
+/* attendance sheet */
+.sheet-wrap{overflow-x:auto}
+.sheet{color:#111;font-size:.9rem}
+.sheet-title{text-align:center;font-size:1.3rem;letter-spacing:.03em;margin:0 0 1rem}
+.sheet-head{width:auto;margin-bottom:1rem;border-collapse:collapse}
+.sheet-head th,.sheet-head td{border:0;padding:.18rem .6rem .18rem 0;white-space:normal;background:transparent;text-transform:none;letter-spacing:0;font-size:.9rem;color:#111}
+.sheet-head th{font-weight:700;color:var(--muted)}
+.sheet-table{width:100%;border-collapse:collapse;margin-bottom:1rem;font-size:.85rem}
+.sheet-table th,.sheet-table td{border:1px solid #cbd5e1;padding:.45rem .55rem;white-space:normal}
+.sheet-table th{background:#e7e9f5;color:#111;text-align:center}
+.sheet-table td.c{text-align:center;white-space:nowrap}
+.sheet-table thead{display:table-header-group}
+.sheet-table tr{break-inside:avoid}
+.sheet-totals{display:flex;flex-wrap:wrap;gap:1.25rem;padding:.5rem 0;font-size:.92rem;break-inside:avoid}
+.sheet-sign{display:flex;justify-content:space-between;flex-wrap:wrap;gap:1.5rem;margin-top:2.25rem;font-size:.9rem;break-inside:avoid}
 
 /* participant form */
 .fld{margin-top:.2rem}.ferr{color:var(--bad);font-size:.8rem;min-height:0}.ferr:empty{display:none}

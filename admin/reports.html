@@ -4,6 +4,38 @@
 <title>Reports - EventSync</title>
 <link rel="stylesheet" href="/css/app.css">
 </head><body>
-<main class="container"><div class="pagehead"><div><h1>Attendance Reports</h1><p class="muted sm">Summary per event, plus attendee-level detail.</p></div><div class="row noprint"><button class="btn ghost" id="print">Export PDF</button><button class="btn ghost" id="xls">Export Excel</button><button class="btn" id="csv">Export CSV</button></div></div><div id="summary"></div><div class="row toolbar" style="margin:1.25rem 0 .75rem"><select id="ev"></select></div><div id="detail"></div></main>
+<main class="container">
+  <section class="noprint">
+    <div class="pagehead">
+      <div><h1>Attendance Reports</h1><p class="muted sm">Overview of all events, plus printable per-event attendance sheets.</p></div>
+      <div class="row">
+        <button class="btn ghost sm" id="sumXlsx">Summary of all events (.xlsx)</button>
+        <button class="btn ghost sm" id="sumCsv">Summary of all events (.csv)</button>
+      </div>
+    </div>
+    <div id="summary"></div>
+  </section>
+
+  <section style="margin-top:1.75rem">
+    <div class="pagehead noprint">
+      <div><h2>Event Attendance Sheet</h2><p class="muted sm">Select an event to preview and export its attendance sheet.</p></div>
+      <div class="row">
+        <button class="btn" id="xlsx" disabled>Export Excel (.xlsx)</button>
+        <button class="btn ghost" id="csv" disabled>Export CSV</button>
+        <button class="btn ghost" id="pdf" disabled>Export PDF</button>
+        <button class="btn ghost" id="print" disabled>Print</button>
+      </div>
+    </div>
+    <div class="row toolbar noprint" style="margin-bottom:1rem">
+      <select id="ev"><option value="">Select an event…</option></select>
+      <select id="filter" aria-label="Attendee filter">
+        <option value="all">All registered</option>
+        <option value="present">Present only</option>
+      </select>
+    </div>
+    <div id="detail"></div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="/js/admin/reports.js"></script>
 </body></html>
