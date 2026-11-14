@@ -1,9 +1,15 @@
 import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmtTime, toast, errMsg, watch } from '/js/core/ui.js';
+import { ICONS } from '/js/shared/icons.js';
 
 await boot('admin', 'monitor');
+$('#iReg').innerHTML = ICONS.users(18);
+$('#iAtt').innerHTML = ICONS.check(18);
+$('#iLeft').innerHTML = ICONS.clock(18);
+$('#iPct').innerHTML = ICONS.activity(18);
 let seen = new Set(), first = true;
+const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
 
 async function loadEvents() {
   const { data } = await supabase.from('events').select('id,title,status').order('starts_at', { ascending: false });
@@ -24,7 +30,7 @@ async function load() {
   $('#sReg').textContent = reg; $('#sAtt').textContent = att; $('#sLeft').textContent = Math.max(reg - att, 0);
   const pct = reg ? Math.round(att / reg * 100) : 0;
   $('#sPct').textContent = pct + '%'; $('#barfill').style.width = Math.min(pct, 100) + '%';
-  $('#feed').innerHTML = a.data.length ? a.data.map(x => `<li class="${!first && !seen.has(x.id) ? 'new' : ''}"><span><b>${esc(x.profiles?.full_name)}</b><br><small class="muted">${esc(x.events?.title)}</small></span><span class="muted">${fmtTime(x.checked_in_at)}</span></li>`).join('') : '<li class="empty">No check-ins yet.</li>';
+  $('#feed').innerHTML = a.data.length ? a.data.map(x => `<li class="${!first && !seen.has(x.id) ? 'new' : ''}"><div class="row" style="gap:.65rem;flex-wrap:nowrap"><span class="avatar">${esc(initials(x.profiles?.full_name))}</span><span><b>${esc(x.profiles?.full_name)}</b><br><small class="muted">${esc(x.events?.title)}</small></span></div><span class="muted sm">${fmtTime(x.checked_in_at)}</span></li>`).join('') : '<li class="empty">No check-ins yet.</li>';
   a.data.forEach(x => seen.add(x.id)); first = false;
 }
 $('#ev').onchange = () => { seen = new Set(); first = true; load(); };

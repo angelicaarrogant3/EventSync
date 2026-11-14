@@ -1,10 +1,15 @@
 <!DOCTYPE html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Scan QR - EventSync</title>
-<link rel="stylesheet" href="/css/app.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070708">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/icon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/css/theme.css">
 </head><body>
-<main class="container"><div class="pagehead"><div><h1>Attendance Verification</h1><p class="muted sm">Scan a participant QR code. Camera needs HTTPS (or localhost).</p></div></div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="card"><div id="reader"></div><div class="row" style="justify-content:center;margin-top:.75rem"><button class="btn" id="start">Start camera</button><button class="btn ghost" id="stop" disabled>Stop</button></div><div id="camErr"></div><label>Or enter code manually</label><div class="row"><input id="manual" placeholder="Paste QR code / token" style="flex:1"><button class="btn" id="verify">Verify</button></div><div id="result"></div></div><div class="card"><h2>Recent scans (this device)</h2><ul class="feed" id="recent"></ul></div></div></main>
+<main class="container"><div class="pagehead"><div><h1>Attendance Verification</h1><p class="muted sm">Scan a participant QR code. Camera needs HTTPS (or localhost).</p></div></div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="card"><div class="scan-frame"><div id="reader"></div></div><div class="row" style="justify-content:center;margin-top:.85rem"><button class="btn" id="start">Start camera</button><button class="btn ghost" id="stop" disabled>Stop</button></div><div id="camErr"></div><label>Or enter code manually</label><div class="row"><input id="manual" placeholder="Paste QR code / token" style="flex:1"><button class="btn" id="verify">Verify</button></div><div id="result"></div></div><div class="card"><h2>Recent scans (this device)</h2><ul class="feed" id="recent"></ul></div></div></main>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script type="module" src="/js/admin/scan.js"></script>
 </body></html>

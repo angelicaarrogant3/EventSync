@@ -10,8 +10,8 @@ async function load() {
   const { data, error } = await q;
   if (error) return toast(errMsg(error), 'error');
   $('#list').innerHTML = data.length ? `<div class="tablewrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Details</th></tr></thead><tbody>${data.map(l => `
-    <tr><td>${fmt(l.created_at)}</td><td>${esc(l.profiles?.full_name || l.profiles?.email || 'system')}</td><td><span class="badge">${esc(l.action)}</span></td>
-    <td class="wrap sm">${esc(Object.entries(l.details || {}).map(([k, v]) => `${k}: ${v}`).join(' · '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="card empty">No activity yet.</div>';
+    <tr><td data-label="Time">${fmt(l.created_at)}</td><td data-label="Actor">${esc(l.profiles?.full_name || l.profiles?.email || 'system')}</td><td data-label="Action"><span class="badge">${esc(l.action)}</span></td>
+    <td data-label="Details" class="wrap sm">${esc(Object.entries(l.details || {}).map(([k, v]) => `${k}: ${v}`).join(' · '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="card empty">No activity yet.</div>';
 }
 $('#filter').onchange = load;
 await load();

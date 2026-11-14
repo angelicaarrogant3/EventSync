@@ -12,9 +12,9 @@ async function load() {
   events = data;
   if (!events.length) { $('#list').innerHTML = '<div class="card empty">No events yet. Create your first one.</div>'; return; }
   $('#list').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Title</th><th>When</th><th>Venue</th><th>Status</th><th>Reg / Cap</th><th>Attended</th><th></th></tr></thead><tbody>${events.map(e => `
-    <tr><td class="wrap"><b>${esc(e.title)}</b></td><td>${fmt(e.starts_at)}</td><td>${esc(e.venue)}</td>
-    <td><span class="badge ${e.status}">${e.status}</span></td><td>${e.registered_count} / ${e.capacity ?? '∞'}</td><td>${e.attended_count}</td>
-    <td><div class="row">
+    <tr><td class="wrap" data-label="Title"><b>${esc(e.title)}</b></td><td data-label="When">${fmt(e.starts_at)}</td><td data-label="Venue">${esc(e.venue)}</td>
+    <td data-label="Status"><span class="badge ${e.status}">${e.status}</span></td><td data-label="Reg / Cap">${e.registered_count} / ${e.capacity ?? '∞'}</td><td data-label="Attended">${e.attended_count}</td>
+    <td data-label="Actions"><div class="row">
       <button class="btn sm ghost" data-a="edit" data-id="${e.id}">Edit</button>
       <button class="btn sm ${e.status === 'published' ? 'ghost' : 'ok'}" data-a="toggle" data-id="${e.id}">${e.status === 'published' ? 'Unpublish' : 'Publish'}</button>
       <button class="btn sm danger" data-a="del" data-id="${e.id}">Delete</button></div></td></tr>`).join('')}</tbody></table></div>`;

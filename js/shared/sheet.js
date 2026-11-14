@@ -131,6 +131,7 @@ export function summaryWorkbook(ExcelJS, m) {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export function renderPrintHtml(m) {
   return `<div class="sheet">
+    <div class="print-brand"><img src="/assets/logo.png" alt="EventSync logo" width="48" height="32"><b>EventSync</b></div>
     <h1 class="sheet-title">${esc(m.title)}</h1>
     <table class="sheet-head">${m.header.map(([k, v]) => `<tr><th>${esc(k)}:</th><td>${esc(v)}</td></tr>`).join('')}</table>
     <table class="sheet-table"><thead><tr>${m.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>

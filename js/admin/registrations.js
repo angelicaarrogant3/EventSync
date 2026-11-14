@@ -29,10 +29,10 @@ function render() {
   if (!list.length) { $('#list').innerHTML = '<div class="card empty">No registrations found.</div>'; return; }
   $('#list').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Participant</th><th>School ID</th><th>Course</th><th>Year</th><th>Section</th><th>Contact</th><th>Email</th><th>Event</th><th>Registered</th><th>Status</th><th>Attendance</th><th></th></tr></thead><tbody>${list.map(r => {
     const p = r.profiles || {}, att = Array.isArray(r.attendance) ? r.attendance[0] : r.attendance;
-    return `<tr><td>${esc(p.full_name)}<br><small class="muted">${esc(p.member_type || '')}</small></td><td>${esc(p.school_id || '—')}</td><td>${esc(p.course || '—')}</td><td>${p.year_level ?? '—'}</td><td>${esc(p.section || '—')}</td><td>${esc(p.contact_number || '—')}</td><td>${esc(p.email)}</td><td>${esc(r.events?.title)}</td><td>${fmt(r.registered_at)}</td>
-    <td><span class="badge ${r.status}">${r.status}</span></td>
-    <td>${att ? `<span class="badge ok">In ${fmt(att.checked_in_at)}</span>` : '<span class="badge">Not yet</span>'}</td>
-    <td>${att ? '' : r.status === 'registered' ? `<button class="btn sm danger" data-id="${r.id}" data-s="cancelled">Cancel</button>` : `<button class="btn sm ok" data-id="${r.id}" data-s="registered">Reinstate</button>`}</td></tr>`;
+    return `<tr><td data-label="Participant">${esc(p.full_name)}<br><small class="muted">${esc(p.member_type || '')}</small></td><td data-label="School ID">${esc(p.school_id || '—')}</td><td data-label="Course">${esc(p.course || '—')}</td><td data-label="Year">${p.year_level ?? '—'}</td><td data-label="Section">${esc(p.section || '—')}</td><td data-label="Contact">${esc(p.contact_number || '—')}</td><td data-label="Email">${esc(p.email)}</td><td data-label="Event">${esc(r.events?.title)}</td><td data-label="Registered">${fmt(r.registered_at)}</td>
+    <td data-label="Status"><span class="badge ${r.status}">${r.status}</span></td>
+    <td data-label="Attendance">${att ? `<span class="badge ok">In ${fmt(att.checked_in_at)}</span>` : '<span class="badge">Not yet</span>'}</td>
+    <td data-label="Action">${att ? '' : r.status === 'registered' ? `<button class="btn sm danger" data-id="${r.id}" data-s="cancelled">Cancel</button>` : `<button class="btn sm ok" data-id="${r.id}" data-s="registered">Reinstate</button>`}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 

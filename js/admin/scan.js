@@ -1,6 +1,7 @@
 import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmtTime, toast, errMsg } from '/js/core/ui.js';
+import { ICONS } from '/js/shared/icons.js';
 
 await boot('admin', 'scan');
 
@@ -22,11 +23,18 @@ async function verify(raw) {
 }
 
 function show(r) {
-  const title = { ok: '✔ Checked in', duplicate: '⚠ Already checked in', invalid: '✖ Invalid QR', cancelled: '✖ Registration cancelled', error: '✖ Error' }[r.status] || r.status;
-  $('#result').innerHTML = `<div class="result ${r.status}"><big>${title}</big>${r.participant ? esc(r.participant) + '<br>' : ''}${r.event ? esc(r.event) + '<br>' : ''}<small>${esc(r.message || '')}</small></div>`;
+  const map = {
+    ok:        [ICONS.check(22),   'Checked in'],
+    duplicate: [ICONS.alert(22),   'Already checked in'],
+    invalid:   [ICONS.xCircle(22), 'Invalid QR'],
+    cancelled: [ICONS.xCircle(22), 'Registration cancelled'],
+    error:     [ICONS.xCircle(22), 'Verification error']
+  };
+  const [ico, title] = map[r.status] || [ICONS.info(22), r.status];
+  $('#result').innerHTML = `<div class="result ${r.status}" role="status"><big>${ico}<span>${title}</span></big>${r.participant ? esc(r.participant) + '<br>' : ''}${r.event ? esc(r.event) + '<br>' : ''}<small>${esc(r.message || '')}</small></div>`;
   if (navigator.vibrate) navigator.vibrate(r.status === 'ok' ? 120 : [80, 60, 80]);
   const li = document.createElement('li'); li.className = 'new';
-  li.innerHTML = `<span>${esc(r.participant || 'Unknown')}<br><small class="muted">${esc(r.event || r.message || '')}</small></span><span class="badge ${r.status === 'ok' ? 'ok' : r.status === 'duplicate' ? 'dup' : 'cancelled'}">${r.status}</span><small class="muted">${fmtTime(new Date())}</small>`;
+  li.innerHTML = `<span><b>${esc(r.participant || 'Unknown')}</b><br><small class="muted">${esc(r.event || r.message || '')}</small></span><span class="badge ${r.status === 'ok' ? 'ok' : r.status === 'duplicate' ? 'dup' : 'cancelled'}">${r.status}</span><small class="muted">${fmtTime(new Date())}</small>`;
   $('#recent').prepend(li);
 }
 
