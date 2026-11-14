@@ -25,7 +25,7 @@ function openForm(e) {
   $('#dlgTitle').textContent = e ? 'Edit event' : 'New event';
   $('#title').value = e?.title || ''; $('#venue').value = e?.venue || ''; $('#desc').value = e?.description || '';
   $('#starts').value = toLocalInput(e?.starts_at); $('#ends').value = toLocalInput(e?.ends_at);
-  $('#cap').value = e?.capacity ?? ''; $('#status').value = e?.status || 'draft';
+  $('#cap').value = e?.capacity ?? ''; $('#deadline').value = toLocalInput(e?.registration_deadline); $('#status').value = e?.status || 'draft';
   dlg.showModal();
 }
 
@@ -36,6 +36,7 @@ $('#form').onsubmit = async ev => {
   const row = {
     title: $('#title').value.trim(), venue: $('#venue').value.trim(), description: $('#desc').value.trim() || null,
     starts_at: new Date($('#starts').value).toISOString(), ends_at: new Date($('#ends').value).toISOString(),
+    registration_deadline: $('#deadline').value ? new Date($('#deadline').value).toISOString() : null,
     capacity: $('#cap').value ? parseInt($('#cap').value, 10) : null, status: $('#status').value
   };
   if (new Date(row.ends_at) <= new Date(row.starts_at)) return toast('End must be after start', 'error');

@@ -7,9 +7,12 @@
     "start": "serve . -l 8080 --no-clipboard",
     "tunnel": "npx --yes localtunnel --port 8080",
     "build": "node tools/generate-config.js",
+    "test": "node --test \"tests/*.test.js\"",
     "create-admin": "node tools/create-admin.js"
   },
   "devDependencies": {
+    "@supabase/supabase-js": "^2.119.0",
+    "pg": "^8.23.1",
     "serve": "^14.2.3"
   }
 }
