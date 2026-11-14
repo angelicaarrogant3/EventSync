@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Participant Portal - EventSync</title>
+  <style>
+    :root { --primary: #2563eb; --primary-dark: #1d4ed8; --bg: #f1f5f9; --card: #ffffff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --success: #059669; --danger: #dc2626; --warn: #d97706; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+    header { background: #0f172a; color: #fff; padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+    .brand { display: flex; align-items: center; gap: 0.65rem; font-weight: 700; font-size: 1.05rem; }
+    .logo { width: 32px; height: 32px; border-radius: 8px; background: var(--primary); display: grid; place-items: center; font-weight: 800; }
+    nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    nav a { color: #cbd5e1; text-decoration: none; padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.88rem; font-weight: 500; }
+    nav a.active, nav a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .user-bar { display: flex; align-items: center; gap: 0.65rem; font-size: 0.85rem; }
+    .btn { padding: 0.5rem 0.9rem; border-radius: 8px; border: 1px solid transparent; font-size: 0.86rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: #fff; color: var(--text); border-color: #cbd5e1; }
+    .btn-danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+    .btn-sm { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
+    main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04); }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-num { font-size: 1.8rem; font-weight: 800; color: var(--primary); }
+    .stat-label { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+    .badge { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700; }
+    .badge-open { background: #dcfce7; color: #166534; }
+    .badge-present { background: #dcfce7; color: #166534; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-absent { background: #fee2e2; color: #991b1b; }
+    .badge-cat { background: #e0f2fe; color: #075985; }
+    .filters { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    input, select { padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: #fff; }
+    .qr-box { text-align: center; padding: 1rem; background: #f8fafc; border-radius: 10px; border: 1px dashed #cbd5e1; margin: 0.75rem 0; }
+    .qr-box img { max-width: 190px; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); }
+    th { background: #f8fafc; font-weight: 700; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; }
+    .alert { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.88rem; }
+    .alert-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-ok { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-err { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">ES</div>
+      <span>EventSync</span>
+    </div>
+    <nav id="navLinks">
+      <a href="/app" data-route="/app">Dashboard</a>
+      <a href="/app/events" data-route="/app/events">Browse Events</a>
+      <a href="/app/my-events" data-route="/app/my-events">My Events</a>
+      <a href="/app/my-qr" data-route="/app/my-qr">My QR Passes</a>
+      <a href="/app/my-attendance" data-route="/app/my-attendance">My Attendance</a>
+      <a href="/app/profile" data-route="/app/profile">Profile</a>
+    </nav>
+    <div class="user-bar">
+      <span id="userLabel">Loading...</span>
+      <button class="btn btn-secondary btn-sm" id="btnLogout">Logout</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="mustChangeBanner" class="alert alert-warn" style="display:none;">
+      <strong>Temporary Password Active:</strong> Please update your password in <a href="/app/profile">Profile</a>.
+    </div>
+    <div id="flashBox" style="display:none;"></div>
+    <div id="appContent">Loading...</div>
+  </main>
+
+  <script src="/vendor/socket.io.min.js"></script>
+  <script>
+    let currentUser = null;
+    let currentParticipant = null;
+
+    function esc(s) {
+      return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function flash(msg, type = 'ok') {
+      const box = document.getElementById('flashBox');
+      box.className = `alert ${type === 'err' ? 'alert-err' : 'alert-ok'}`;
+      box.textContent = msg;
+      box.style.display = 'block';
+      setTimeout(() => { box.style.display = 'none'; }, 4000);
+    }
+
+    async function api(url, opts = {}) {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        ...opts
+      });
+      if (res.status === 401) {
+        window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+        throw new Error('Unauthorized');
+      }
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error?.message || 'Request failed');
+      }
+      return json.data;
+    }
+
+    function highlightNav(path) {
+      document.querySelectorAll('#navLinks a').forEach(a => {
+        const route = a.dataset.route;
+        const active = path === route || (route === '/app/events' && path.startsWith('/app/events/'));
+        a.classList.toggle('active', active);
+      });
+    }
+
+    async function renderDashboard() {
+      const [events, myEvents, myAtt] = await Promise.all([
+        api('/api/events'),
+        api('/api/my/events'),
+        api('/api/my/attendance')
+      ]);
+      const activeRegs = myEvents.filter(r => r.registration_status === 'REGISTERED');
+      const attendedCount = myAtt.filter(a => a.attendance_status === 'PRESENT').length;
+
+      document.getElementById('appContent').innerHTML = `
+        <h1>Welcome, ${esc(currentUser.full_name)}</h1>
+        <div class="stat-grid">
+          <div class="card"><div class="stat-num">${events.length}</div><div class="stat-label">Open Events</div></div>
+          <div class="card"><div class="stat-num">${activeRegs.length}</div><div class="stat-label">My Registrations</div></div>
+          <div class="card"><div class="stat-num">${attendedCount}</div><div class="stat-label">Events Attended</div></div>
+        </div>
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <h2 style="margin:0; font-size:1.1rem;">Open Events</h2>
+            <a href="/app/events" class="btn btn-primary btn-sm">Browse All</a>
+          </div>
+          ${events.length === 0 ? '<p>No open events right now.</p>' : `
+            <div class="grid">
+              ${events.slice(0, 6).map(ev => `
+                <div class="card" style="padding:1rem;">
+                  <span class="badge badge-cat">${esc(ev.category || 'General')}</span>
+                  <h3 style="margin:0.5rem 0 0.25rem; font-size:1rem;">${esc(ev.title)}</h3>
+                  <div style="font-size:0.84rem; color:var(--muted); margin-bottom:0.75rem;">
+                    ${esc(ev.event_date)} &bull; ${esc(ev.start_time)}-${esc(ev.end_time)}<br>
+                    ${esc(ev.venue)} &bull; ${ev.remaining_capacity} slots left
+                  </div>
+                  <a href="/app/events/${ev.id}" class="btn btn-secondary btn-sm">View Details</a>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    async function renderBrowseEvents() {
+      document.getElementById('appContent').innerHTML = `
+        <h1>Browse Open Events</h1>
+        <div class="filters">
+          <input id="fSearch" placeholder="Search title, venue, category..." style="flex:1; min-width:200px;">
+          <input id="fCategory" placeholder="Category (e.g. Seminar)">
+          <input id="fDate" type="date">
+          <button class="btn btn-primary" id="btnFilter">Filter</button>
+        </div>
+        <div id="eventsGrid" class="grid">Loading events...</div>
+      `;
+
+      const load = async () => {
+        const params = new URLSearchParams();
+        const s = document.getElementById('fSearch').value.trim();
+        const c = document.getElementById('fCategory').value.trim();
+        const d = document.getElementById('fDate').value;
+        if (s) params.set('search', s);
+        if (c) params.set('category', c);
+        if (d) params.set('date', d);
+        const events = await api('/api/events?' + params.toString());
+        const grid = document.getElementById('eventsGrid');
+        if (events.length === 0) {
+          grid.innerHTML = '<div class="card">No matching open events found.</div>';
+          return;
+        }
+        grid.innerHTML = events.map(ev => `
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="badge badge-cat">${esc(ev.category || 'General')}</span>
+              <span class="badge badge-open">${ev.remaining_capacity} left</span>
+            </div>
+            <h3 style="margin:0.65rem 0 0.35rem;">${esc(ev.title)}</h3>
+            <p style="font-size:0.86rem; color:var(--muted); margin:0 0 0.75rem;">${esc(ev.description || 'No description provided.')}</p>
+            <div style="font-size:0.84rem; color:var(--muted); margin-bottom:0.85rem;">
+              <strong>Date:</strong> ${esc(ev.event_date)} (${esc(ev.start_time)} - ${esc(ev.end_time)})<br>
+              <strong>Venue:</strong> ${esc(ev.venue)}
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+              <a href="/app/events/${ev.id}" class="btn btn-secondary btn-sm">Details</a>
+              <button class="btn btn-primary btn-sm" onclick="registerForEvent('${ev.id}')">Register</button>
+            </div>
+          </div>
+        `).join('');
+      };
+
+      document.getElementById('btnFilter').addEventListener('click', load);
+      await load();
+    }
+
+    async function renderEventDetail(eventId) {
+      const [ev, myEvents] = await Promise.all([
+        api('/api/events/' + eventId),
+        api('/api/my/events')
+      ]);
+      const existing = myEvents.find(r => r.event_id === eventId && r.registration_status === 'REGISTERED');
+
+      document.getElementById('appContent').innerHTML = `
+        <a href="/app/events" class="btn btn-secondary btn-sm" style="margin-bottom:1rem;">&larr; Back to Events</a>
+        <div class="card">
+          <span class="badge badge-cat">${esc(ev.category || 'General')}</span>
+          <span class="badge badge-open">${esc(ev.status)}</span>
+          <h1 style="margin:0.5rem 0;">${esc(ev.title)}</h1>
+          <p>${esc(ev.description || '')}</p>
+          <p style="font-size:0.9rem; color:var(--muted);">
+            <strong>Date:</strong> ${esc(ev.event_date)} &bull; <strong>Time:</strong> ${esc(ev.start_time)} - ${esc(ev.end_time)}<br>
+            <strong>Venue:</strong> ${esc(ev.venue)}<br>
+            <strong>Capacity:</strong> ${ev.registered_count} / ${ev.capacity} registered (${ev.remaining_capacity} remaining)
+            ${ev.registration_deadline ? `<br><strong>Registration Deadline:</strong> ${esc(ev.registration_deadline)}` : ''}
+          </p>
+          ${existing ? `
+            <div class="alert alert-ok">You are registered for this event!</div>
+            <div class="qr-box">
+              <img src="${existing.qrDataUrl}" alt="My QR Pass">
+              <div><a download="EventSync-QR-${esc(ev.title)}.png" href="${existing.qrDataUrl}" class="btn btn-primary btn-sm" style="margin-top:0.5rem;">Download QR Pass</a></div>
+            </div>
+          ` : `
+            <button class="btn btn-primary" onclick="registerForEvent('${ev.id}')">Register for This Event</button>
+          `}
+        </div>
+      `;
+    }
+
+    window.registerForEvent = async function(eventId) {
+      try {
+        await api('/api/my/registrations', {
+          method: 'POST',
+          body: JSON.stringify({ eventId })
+        });
+        flash('Registered successfully! View your QR pass under My QR Passes.');
+        route();
+      } catch (err) {
+        flash(err.message, 'err');
+      }
+    };
+
+    window.cancelMyRegistration = async function(regId) {
+      if (!confirm('Cancel this event registration?')) return;
+      try {
+        await api('/api/my/registrations/' + regId, { method: 'DELETE' });
+        flash('Registration cancelled.');
+        route();
+      } catch (err) {
+        flash(err.message, 'err');
+      }
+    };
+
+    async function renderMyEvents() {
+      const list = await api('/api/my/events');
+      document.getElementById('appContent').innerHTML = `
+        <h1>My Registered Events</h1>
+        ${list.length === 0 ? '<div class="card">You have not registered for any events yet. <a href="/app/events">Browse open events</a>.</div>' : `
+          <div class="grid">
+            ${list.map(r => `
+              <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="badge ${r.registration_status === 'REGISTERED' ? 'badge-open' : 'badge-absent'}">${esc(r.registration_status)}</span>
+                  <span class="badge ${r.attendance_status === 'PRESENT' ? 'badge-present' : (r.attendance_status === 'ABSENT' ? 'badge-absent' : 'badge-pending')}">${esc(r.attendance_status)}</span>
+                </div>
+                <h3 style="margin:0.65rem 0 0.25rem;">${esc(r.event_title)}</h3>
+                <div style="font-size:0.85rem; color:var(--muted); margin-bottom:0.75rem;">
+                  ${esc(r.event_date)} &bull; ${esc(r.start_time)}-${esc(r.end_time)}<br>
+                  ${esc(r.event_venue)}
+                </div>
+                ${r.registration_status === 'REGISTERED' ? `
+                  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <a href="/app/my-qr" class="btn btn-primary btn-sm">View QR</a>
+                    <button class="btn btn-danger btn-sm" onclick="cancelMyRegistration('${r.id}')">Cancel</button>
+                  </div>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `}
+      `;
+    }
+
+    async function renderMyQr() {
+      const list = await api('/api/my/events');
+      const active = list.filter(r => r.registration_status === 'REGISTERED' && r.qrDataUrl);
+      document.getElementById('appContent').innerHTML = `
+        <h1>My QR Passes</h1>
+        <p style="color:var(--muted);">Show this QR code at the event entrance for attendance verification.</p>
+        ${active.length === 0 ? '<div class="card">No active QR passes. Register for an open event first.</div>' : `
+          <div class="grid">
+            ${active.map(r => `
+              <div class="card" style="text-align:center;">
+                <h3 style="margin:0 0 0.25rem;">${esc(r.event_title)}</h3>
+                <div style="font-size:0.84rem; color:var(--muted);">${esc(r.event_date)} &bull; ${esc(r.event_venue)}</div>
+                <div class="qr-box">
+                  <img src="${r.qrDataUrl}" alt="QR Code">
+                </div>
+                <a download="EventSync-QR-${esc(r.event_title)}.png" href="${r.qrDataUrl}" class="btn btn-primary btn-sm">Download QR PNG</a>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      `;
+    }
+
+    async function renderMyAttendance() {
+      const rows = await api('/api/my/attendance');
+      document.getElementById('appContent').innerHTML = `
+        <h1>My Attendance History</h1>
+        <div class="card" style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr><th>Event</th><th>Date</th><th>Venue</th><th>Status</th><th>Checked In At</th></tr>
+            </thead>
+            <tbody>
+              ${rows.length === 0 ? '<tr><td colspan="5">No attendance records yet.</td></tr>' : rows.map(r => `
+                <tr>
+                  <td><strong>${esc(r.event_title)}</strong></td>
+                  <td>${esc(r.event_date)}</td>
+                  <td>${esc(r.event_venue)}</td>
+                  <td><span class="badge ${r.attendance_status === 'PRESENT' ? 'badge-present' : (r.attendance_status === 'ABSENT' ? 'badge-absent' : 'badge-pending')}">${esc(r.attendance_status)}</span></td>
+                  <td>${esc(r.checked_in_at || '-')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function renderProfile() {
+      const data = await api('/api/my/profile');
+      const u = data.user;
+      const p = data.participant || {};
+      document.getElementById('appContent').innerHTML = `
+        <h1>My Profile</h1>
+        <div class="grid">
+          <div class="card">
+            <h2 style="margin-top:0; font-size:1.05rem;">Personal Details</h2>
+            <form id="profileForm">
+              <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.82rem;font-weight:600;">Full Name</label><input id="pName" value="${esc(u.full_name)}" style="width:100%;" required></div>
+              <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.82rem;font-weight:600;">Email</label><input id="pEmail" type="email" value="${esc(u.email)}" style="width:100%;" required></div>
+              <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.82rem;font-weight:600;">Contact Number</label><input id="pContact" value="${esc(p.contact_number || '')}" style="width:100%;"></div>
+              <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.82rem;font-weight:600;">Department / Course</label><input id="pDept" value="${esc(p.department_or_course || '')}" style="width:100%;"></div>
+              <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.82rem;font-weight:600;">Year Level</label><input id="pYear" value="${esc(p.year_level || '')}" style="width:100%;"></div>
+              <button type="submit" class="btn btn-primary">Save Profile</button>
+            </form>
+          </div>
+          <div class="card">
+            <h2 style="margin-top:0; font-size:1.05rem;">Change Password</h2>
+            <form id="pwForm">
+              <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.82rem;font-weight:600;">Current Password</label><input id="pwCur" type="password" style="width:100%;" required></div>
+              <div style="margin-bottom:0.75rem;"><label style="display:block;font-size:0.82rem;font-weight:600;">New Password (min 8 chars)</label><input id="pwNew" type="password" minlength="8" style="width:100%;" required></div>
+              <button type="submit" class="btn btn-primary">Update Password</button>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('profileForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const updated = await api('/api/my/profile', {
+            method: 'PUT',
+            body: JSON.stringify({
+              full_name: document.getElementById('pName').value.trim(),
+              email: document.getElementById('pEmail').value.trim(),
+              contact_number: document.getElementById('pContact').value.trim(),
+              department_or_course: document.getElementById('pDept').value.trim(),
+              year_level: document.getElementById('pYear').value.trim()
+            })
+          });
+          currentUser = updated.user;
+          currentParticipant = updated.participant;
+          document.getElementById('userLabel').textContent = currentUser.full_name;
+          flash('Profile updated.');
+        } catch (err) {
+          flash(err.message, 'err');
+        }
+      });
+
+      document.getElementById('pwForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await api('/api/auth/change-password', {
+            method: 'POST',
+            body: JSON.stringify({
+              currentPassword: document.getElementById('pwCur').value,
+              newPassword: document.getElementById('pwNew').value
+            })
+          });
+          document.getElementById('mustChangeBanner').style.display = 'none';
+          document.getElementById('pwForm').reset();
+          flash('Password updated successfully.');
+        } catch (err) {
+          flash(err.message, 'err');
+        }
+      });
+    }
+
+    async function route() {
+      const path = window.location.pathname.replace(/\/+$/, '') || '/app';
+      highlightNav(path);
+      if (path === '/app') return renderDashboard();
+      if (path === '/app/events') return renderBrowseEvents();
+      if (path.startsWith('/app/events/')) return renderEventDetail(path.split('/app/events/')[1]);
+      if (path === '/app/my-events') return renderMyEvents();
+      if (path === '/app/my-qr') return renderMyQr();
+      if (path === '/app/my-attendance') return renderMyAttendance();
+      if (path === '/app/profile') return renderProfile();
+      return renderDashboard();
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    });
+
+    (async () => {
+      try {
+        const me = await api('/api/auth/me');
+        currentUser = me.user;
+        currentParticipant = me.participant;
+        if (currentUser.role === 'administrator') {
+          window.location.replace('/admin');
+          return;
+        }
+        document.getElementById('userLabel').textContent = currentUser.full_name;
+        if (currentUser.must_change_password) {
+          document.getElementById('mustChangeBanner').style.display = 'block';
+        }
+        await route();
+
+        // Connect authenticated socket for own updates
+        const socket = io();
+        socket.on('my:attendance_updated', () => {
+          flash('Your attendance was just verified!');
+          route();
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  </script>
+</body>
+</html>

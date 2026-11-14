@@ -1,0 +1,10 @@
+{
+  "name": "eventsync-node3-scanner",
+  "version": "1.0.0",
+  "description": "Node 3: Attendance Verification Station and Offline Queue for EventSync",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
+
