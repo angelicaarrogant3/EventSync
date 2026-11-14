@@ -10,8 +10,8 @@ const field = (id, label, control, hint = '') =>
  * Returns { values(), validate(), showErrors(obj), reset() }.
  */
 export function mountParticipantForm(root, { consentLabel = PRIVACY_TEXT } = {}) {
-  root.innerHTML = `
-    ${field('full_name', 'Full name *', '<input id="pf_full_name" autocomplete="name" maxlength="120">')}
+  root.innerHTML = `<div class="pf-grid">
+    <div class="pf-span">${field('full_name', 'Full name *', '<input id="pf_full_name" autocomplete="name" maxlength="120">')}</div>
     ${field('school_id', 'School ID / student number *', '<input id="pf_school_id" autocomplete="off" maxlength="20">')}
     ${field('email', 'Email *', '<input id="pf_email" type="email" autocomplete="email" inputmode="email">')}
     ${field('contact_number', 'Contact number (optional)', '<input id="pf_contact_number" type="tel" inputmode="tel" placeholder="09XXXXXXXXX or +639XXXXXXXXX">')}
@@ -20,11 +20,11 @@ export function mountParticipantForm(root, { consentLabel = PRIVACY_TEXT } = {})
       <input id="pf_course_other" placeholder="Type your course / department" maxlength="60" hidden style="margin-top:.4rem">`)}
     <div id="pf_year_wrap" hidden>${field('year_level', 'Year level *', `<select id="pf_year_level"><option value="">Select…</option>${YEAR_LEVELS.map(y => `<option value="${y.value}">${y.label}</option>`).join('')}</select>`)}</div>
     ${field('section', 'Section (optional)', '<input id="pf_section" maxlength="30">')}
-    ${field('password', 'Password *', `<div class="pwrow"><input id="pf_password" type="password" autocomplete="new-password"><button type="button" class="btn ghost sm" id="pf_toggle" aria-label="Show or hide password">Show</button></div>`,
+    <div class="pf-span">${field('password', 'Password *', `<div class="pwrow"><input id="pf_password" type="password" autocomplete="new-password"><button type="button" class="btn ghost sm" id="pf_toggle" aria-label="Show or hide password">Show</button></div>`,
       `Min ${MIN_PASSWORD} characters, with letters and numbers.`)}
-    <ul class="pwrules" id="pf_rules"></ul>
-    ${field('confirm_password', 'Confirm password *', '<input id="pf_confirm_password" type="password" autocomplete="new-password">')}
-    <div class="fld" data-f="consent"><label class="check"><input type="checkbox" id="pf_consent"> <span>${esc(consentLabel)} *</span></label><div class="ferr" id="err_consent" role="alert"></div></div>`;
+    <ul class="pwrules" id="pf_rules"></ul></div>
+    <div class="pf-span">${field('confirm_password', 'Confirm password *', '<input id="pf_confirm_password" type="password" autocomplete="new-password">')}</div>
+    <div class="fld pf-span" data-f="consent"><label class="check"><input type="checkbox" id="pf_consent"> <span>${esc(consentLabel)} *</span></label><div class="ferr" id="err_consent" role="alert"></div></div></div>`;
 
   const $ = id => root.querySelector('#pf_' + id);
   const sync = () => {

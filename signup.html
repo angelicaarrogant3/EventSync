@@ -1,23 +1,35 @@
 <!DOCTYPE html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sign up - EventSync</title>
-<link rel="stylesheet" href="/css/app.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070708">
+<title>Sign up — EventSync</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/icon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/css/theme.css">
 </head><body>
-<div class="authwrap" style="align-items:flex-start"><div class="card" style="margin:1rem 0">
-  <h1>Create account</h1><p class="muted sm">Participant accounts only. Admin access is granted by the system owner.</p>
+<div class="authwrap" style="align-items:flex-start"><div class="card fade-in" style="margin:1rem 0;width:min(620px,100%)">
+  <div class="auth-logo">
+    <a href="/"><img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="84" height="56"></a>
+  </div>
+  <h1 style="text-align:center">Create account</h1>
+  <p class="muted sm" style="text-align:center">Participant accounts only. Admin access is granted by the system owner.</p>
   <form id="f" novalidate>
     <div id="fields"></div>
     <div id="msg"></div>
-    <button class="btn" style="width:100%;margin-top:1rem" id="go">Sign up</button>
+    <button class="btn" style="width:100%;margin-top:1.15rem" id="go">Sign up</button>
   </form>
-  <p class="sm muted" style="text-align:center">Already registered? <a href="/login">Log in</a></p>
+  <p class="sm muted" style="text-align:center;margin-top:1.1rem">Already registered? <a href="/login">Log in</a> · <a href="/">Home</a></p>
 </div></div>
 <dialog id="doneDlg" style="text-align:center">
-  <div style="font-size:2.5rem">🎉</div>
+  <div style="margin-bottom:.65rem;color:var(--success)">
+    <svg class="ico" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+  </div>
   <h2>Account created!</h2>
   <p class="muted" id="doneText">Your account is ready. Please log in to continue.</p>
-  <a class="btn" id="toLogin" href="/login" style="width:100%">Go to login</a>
+  <a class="btn" id="toLogin" href="/login" style="width:100%;margin-top:.5rem">Go to login</a>
 </dialog>
 <script type="module" src="/js/pages/signup.js"></script>
 </body></html>

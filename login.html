@@ -1,18 +1,36 @@
 <!DOCTYPE html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Log in - EventSync</title>
-<link rel="stylesheet" href="/css/app.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070708">
+<title>Log in — EventSync</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/icon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/css/theme.css">
 </head><body>
-<div class="authwrap"><div class="card">
-  <h1>Welcome back</h1><p class="muted sm">Log in to EventSync (admins and participants use the same form).</p>
+<div class="authwrap"><div class="card fade-in" style="width:min(440px,100%)">
+  <div class="auth-logo">
+    <a href="/"><img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="84" height="56"></a>
+  </div>
+  <h1 style="text-align:center">Welcome back</h1>
+  <p class="muted sm" style="text-align:center">Log in to EventSync (admins and participants use the same form).</p>
   <form id="f">
-    <label for="email">Email</label><input id="email" type="email" required autocomplete="email">
-    <label for="password">Password</label><input id="password" type="password" required autocomplete="current-password">
+    <label for="email">Email</label><input id="email" type="email" required autocomplete="email" placeholder="you@school.edu.ph">
+    <label for="password">Password</label>
+    <div class="pwrow">
+      <input id="password" type="password" required autocomplete="current-password" placeholder="Enter your password">
+      <button type="button" class="btn ghost sm" id="togglePw" aria-label="Show or hide password">Show</button>
+    </div>
     <div id="msg"></div>
-    <button class="btn" style="width:100%;margin-top:1rem" id="go">Log in</button>
+    <button class="btn" style="width:100%;margin-top:1.15rem" id="go">Log in</button>
   </form>
-  <p class="sm muted" style="text-align:center">No account? <a href="/signup">Sign up</a></p>
+  <p class="sm muted" style="text-align:center;margin-top:1.1rem">No account? <a href="/signup">Sign up</a> · <a href="/">Home</a></p>
 </div></div>
 <script type="module" src="/js/pages/login.js"></script>
+<script>
+  const tp = document.getElementById('togglePw'), pw = document.getElementById('password');
+  tp.onclick = () => { const s = pw.type === 'password'; pw.type = s ? 'text' : 'password'; tp.textContent = s ? 'Hide' : 'Show'; };
+</script>
 </body></html>
