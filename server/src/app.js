@@ -39,6 +39,22 @@ app.use(attachSession);
 // Public certificate download & connect-info API
 app.use('/', connectRoutes);
 
+// Inline SVG favicon so browsers never log 404 for /favicon.ico
+const FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2563eb"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#ffffff">ES</text></svg>';
+app.get('/favicon.ico', (req, res) => {
+  res.type('image/svg+xml').status(200).send(FAVICON_SVG);
+});
+
+// Public non-secret client configuration (used by station pages)
+app.get('/config', (req, res) => {
+  const host = req.get('host') || `localhost:${config.port}`;
+  res.json({
+    node1Url: `${req.protocol}://${host}`,
+    protocol: req.protocol,
+    port: config.port
+  });
+});
+
 // Mount API routes
 app.use('/api', healthRoutes);
 app.use('/api', authRoutes);
@@ -83,10 +99,17 @@ app.get(adminPages, requireRole('administrator'), (req, res) => {
   res.sendFile(path.join(adminPublic, 'index.html'));
 });
 
-// Existing Administrator Station Pages (Protected: administrator only)
-app.use('/registration', requireRole('administrator'), express.static(registrationPublic));
-app.use('/scanner', requireRole('administrator'), express.static(scannerPublic));
-app.use('/organizer', requireRole('administrator'), express.static(organizerPublic));
+// Existing Administrator Station Pages: protect HTML entry, keep static assets (manifest, CSS, JS, sw.js) public
+function mountStation(prefix, dir) {
+  app.get([prefix, `${prefix}/`, `${prefix}/index.html`], requireRole('administrator'), (req, res) => {
+    res.sendFile(path.join(dir, 'index.html'));
+  });
+  app.use(prefix, express.static(dir, { index: false }));
+}
+
+mountStation('/registration', registrationPublic);
+mountStation('/scanner', scannerPublic);
+mountStation('/organizer', organizerPublic);
 
 // Home route: redirect by session role or to /login
 app.get('/', (req, res) => {

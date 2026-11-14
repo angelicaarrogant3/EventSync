@@ -139,4 +139,18 @@ router.post('/attendance/manual', requireRole('administrator'), (req, res, next)
   }
 });
 
+// GET /api/attendance/live?eventId=... (Admin only, used by organizer dashboard)
+router.get('/attendance/live', requireRole('administrator'), (req, res, next) => {
+  try {
+    const { eventId } = req.query;
+    if (!eventId) {
+      return error(res, 'INVALID_INPUT', 'eventId query parameter is required', 400);
+    }
+    const data = attendanceService.getLiveAttendance(eventId);
+    return success(res, data, 200);
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
