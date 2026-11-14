@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Participant Sign Up - EventSync</title>
+  <style>
+    :root { --primary: #2563eb; --primary-dark: #1d4ed8; --bg: #f1f5f9; --card: #ffffff; --text: #0f172a; --muted: #64748b; --border: #cbd5e1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1rem; }
+    .auth-card { width: 100%; max-width: 560px; background: var(--card); border: 1px solid #e2e8f0; border-radius: 14px; padding: 2rem; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08); }
+    .brand { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; }
+    .logo { width: 42px; height: 42px; border-radius: 10px; background: var(--primary); color: #fff; font-weight: 800; display: grid; place-items: center; }
+    h1 { font-size: 1.35rem; margin: 0; }
+    .subtitle { font-size: 0.88rem; color: var(--muted); margin: 0.15rem 0 0; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+    .form-group { margin-bottom: 0.85rem; }
+    label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.3rem; }
+    input, select { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.92rem; background: #fff; }
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-right: 3.8rem; }
+    .pw-toggle { position: absolute; right: 0.45rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--primary); font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    .btn { width: 100%; padding: 0.75rem; border: none; border-radius: 8px; background: var(--primary); color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 0.4rem; }
+    .btn:hover { background: var(--primary-dark); }
+    .alert { display: none; padding: 0.7rem 0.85rem; border-radius: 8px; font-size: 0.86rem; margin-bottom: 1rem; }
+    .alert.error { display: block; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert.success { display: block; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .links { margin-top: 1.25rem; display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); }
+    .links a { color: var(--primary); text-decoration: none; font-weight: 600; }
+    .hint { font-size: 0.76rem; color: var(--muted); margin-top: 0.2rem; }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+    <div class="brand">
+      <div class="logo">ES</div>
+      <div>
+        <h1>Participant Sign Up</h1>
+        <p class="subtitle">Create your EventSync participant account</p>
+      </div>
+    </div>
+
+    <div id="msgBox" class="alert" role="alert"></div>
+
+    <form id="signupForm">
+      <div class="grid">
+        <div class="form-group">
+          <label for="full_name">Full Name *</label>
+          <input id="full_name" required placeholder="e.g. Juan Dela Cruz">
+        </div>
+        <div class="form-group">
+          <label for="username">Username *</label>
+          <input id="username" required placeholder="e.g. jdelacruz">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label for="email">Email *</label>
+          <input id="email" type="email" required placeholder="name@university.edu">
+        </div>
+        <div class="form-group">
+          <label for="contact_number">Contact Number</label>
+          <input id="contact_number" placeholder="e.g. 09171234567">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label for="school_id">School / Employee ID *</label>
+          <input id="school_id" required placeholder="e.g. 2024-10045">
+        </div>
+        <div class="form-group">
+          <label for="participant_type">Affiliation *</label>
+          <select id="participant_type">
+            <option value="STUDENT">Student</option>
+            <option value="FACULTY">Faculty</option>
+            <option value="STAFF">Staff</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label for="department_or_course">Department or Course *</label>
+          <input id="department_or_course" required placeholder="e.g. BS Computer Science">
+        </div>
+        <div class="form-group">
+          <label for="year_level">Year Level / Role *</label>
+          <input id="year_level" required placeholder="e.g. 3rd Year / Instructor">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label for="password">Password *</label>
+          <div class="pw-wrap">
+            <input id="password" type="password" minlength="8" required>
+            <button type="button" class="pw-toggle" data-target="password">Show</button>
+          </div>
+          <div class="hint">Minimum 8 characters</div>
+        </div>
+        <div class="form-group">
+          <label for="confirm_password">Confirm Password *</label>
+          <div class="pw-wrap">
+            <input id="confirm_password" type="password" minlength="8" required>
+            <button type="button" class="pw-toggle" data-target="confirm_password">Show</button>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">Create Participant Account</button>
+    </form>
+
+    <div class="links">
+      <span>Already have an account? <a href="/login">Sign in</a></span>
+      <a href="/connect">Network Hub</a>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.pw-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const inp = document.getElementById(btn.dataset.target);
+        const show = inp.type === 'password';
+        inp.type = show ? 'text' : 'password';
+        btn.textContent = show ? 'Hide' : 'Show';
+      });
+    });
+
+    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msgBox = document.getElementById('msgBox');
+      const btn = document.getElementById('submitBtn');
+      msgBox.className = 'alert';
+
+      const payload = {
+        full_name: document.getElementById('full_name').value.trim(),
+        username: document.getElementById('username').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        contact_number: document.getElementById('contact_number').value.trim(),
+        school_id: document.getElementById('school_id').value.trim(),
+        participant_type: document.getElementById('participant_type').value,
+        department_or_course: document.getElementById('department_or_course').value.trim(),
+        year_level: document.getElementById('year_level').value.trim(),
+        password: document.getElementById('password').value,
+        confirm_password: document.getElementById('confirm_password').value
+      };
+
+      if (payload.password !== payload.confirm_password) {
+        msgBox.className = 'alert error';
+        msgBox.textContent = 'Passwords do not match.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Creating account...';
+
+      try {
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+          msgBox.className = 'alert error';
+          msgBox.textContent = json.error?.message || 'Sign up failed.';
+          btn.disabled = false;
+          btn.textContent = 'Create Participant Account';
+          return;
+        }
+
+        msgBox.className = 'alert success';
+        msgBox.textContent = 'Account created! Redirecting to login...';
+        setTimeout(() => { window.location.href = '/login'; }, 1000);
+      } catch {
+        msgBox.className = 'alert error';
+        msgBox.textContent = 'Network error. Please try again.';
+        btn.disabled = false;
+        btn.textContent = 'Create Participant Account';
+      }
+    });
+  </script>
+</body>
+</html>
