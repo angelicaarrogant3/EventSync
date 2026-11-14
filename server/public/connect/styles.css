@@ -1,0 +1,395 @@
+/* EventSync Connect Hub Stylesheet */
+:root {
+  --primary: #0f172a;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --border: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius: 12px;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.top-header {
+  background-color: #0f172a;
+  color: #fff;
+  padding: 1rem 1.5rem;
+  border-bottom: 3px solid var(--accent);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.brand-logo {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.brand-title h1 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.brand-title p {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.server-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1e293b;
+  border: 1px solid #334155;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+
+/* Warning Banner */
+.insecure-banner {
+  background-color: #dc2626;
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.insecure-banner.visible {
+  display: flex;
+}
+
+/* Main Container */
+.main-content {
+  flex: 1;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+/* Hero / Welcome Banner */
+.hero-card {
+  background: linear-gradient(135deg, #1e3a8a, #0f172a);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.hero-text h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.hero-text p {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  max-width: 650px;
+}
+
+.hero-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.info-chip {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.3rem 0.75rem;
+  border-radius: 16px;
+  font-size: 0.78rem;
+  font-family: monospace;
+}
+
+/* Role Grid */
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+  color: var(--text-main);
+}
+
+.section-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1.25rem;
+}
+
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.role-card {
+  background: #ffffff;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.25rem;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.role-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.badge-reg { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.badge-scan { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.badge-org { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+
+.role-header h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-top: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.role-header p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.qr-preview-box {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.qr-preview-box img {
+  width: 170px;
+  height: 170px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+}
+
+.qr-caption {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.btn {
+  min-height: 44px;
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.btn-primary { background-color: var(--accent); color: #fff; }
+.btn-primary:hover { background-color: var(--accent-hover); }
+
+.btn-secondary { background-color: #fff; border-color: var(--border); color: var(--text-main); }
+.btn-secondary:hover { background-color: #f1f5f9; }
+
+.btn-block { width: 100%; }
+
+/* Certificate Trust Guide (Accordion) */
+.cert-section {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.cert-downloads-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 1.5rem 0;
+}
+
+.accordion-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.accordion-header {
+  width: 100%;
+  background: #f8fafc;
+  border: none;
+  padding: 1rem 1.25rem;
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 48px;
+}
+
+.accordion-header:hover {
+  background: #f1f5f9;
+}
+
+.accordion-body {
+  padding: 1.25rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: #334155;
+  background: #fff;
+  display: none;
+  border-top: 1px solid var(--border);
+}
+
+.accordion-body.open {
+  display: block;
+}
+
+.accordion-body ol {
+  padding-left: 1.5rem;
+}
+
+.accordion-body li {
+  margin-bottom: 0.4rem;
+}
+
+/* Connected Devices Grid */
+.devices-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.devices-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.device-card-item {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.device-card-item.online {
+  border-left: 4px solid var(--success);
+}
+
+.device-card-item.offline {
+  border-left: 4px solid var(--danger);
+  opacity: 0.8;
+}
+
+@media (max-width: 640px) {
+  .hero-card {
+    padding: 1.25rem;
+  }
+  .roles-grid {
+    grid-template-columns: 1fr;
+  }
+  .main-content {
+    padding: 1rem;
+  }
+}
