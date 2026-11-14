@@ -3,9 +3,6 @@
  * Runs an isolated in-process HTTP + Socket.IO server on an ephemeral port.
  */
 
-const path = require('path');
-module.paths.push(path.resolve(__dirname, '../server/node_modules'));
-
 const http = require('http');
 const assert = require('assert');
 const { initializeDatabase, db } = require('../server/src/db/connection');

@@ -6,9 +6,7 @@
  * or prompts interactively in the terminal.
  */
 
-const path = require('path');
 const readline = require('readline');
-module.paths.push(path.resolve(__dirname, '../server/node_modules'));
 
 require('../server/src/config');
 const { initializeDatabase } = require('../server/src/db/connection');

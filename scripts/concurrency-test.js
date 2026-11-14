@@ -8,8 +8,6 @@
  * 3. Idempotent Offline Sync (Duplicate scan replay rejection)
  */
 
-const path = require('path');
-module.paths.push(path.resolve(__dirname, '../server/node_modules'));
 const http = require('http');
 const https = require('https');
 

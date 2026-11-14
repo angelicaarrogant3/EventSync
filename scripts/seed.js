@@ -1,7 +1,4 @@
-const path = require('path');
 const readline = require('readline');
-// Ensure module lookup finds server/node_modules
-module.paths.push(path.resolve(__dirname, '../server/node_modules'));
 
 const { v4: uuidv4 } = require('uuid');
 

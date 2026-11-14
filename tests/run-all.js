@@ -4,9 +4,6 @@
  */
 
 const path = require('path');
-// Ensure module lookup finds server/node_modules
-module.paths.push(path.resolve(__dirname, '../server/node_modules'));
-
 const assert = require('assert');
 const fs = require('fs');
 const { execFileSync } = require('child_process');

@@ -6,20 +6,27 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server/src/index.js",
-    "start:server": "node server/src/index.js",
-    "start:http": "node -e \"process.env.HTTP_ONLY='true'; require('./server/src/index.js');\"",
     "start:https": "node -e \"process.env.HTTPS='true'; require('./server/src/index.js');\"",
-    "start:registration": "node clients/registration/server.js",
-    "start:scanner": "node clients/scanner/server.js",
-    "start:organizer": "node clients/organizer/server.js",
+    "start:info": "node server/src/index.js --info",
+    "start:qr": "node server/src/index.js --qr",
     "create-admin": "node scripts/create-admin.js",
     "seed": "node scripts/seed.js",
     "seed:demo": "node scripts/seed.js --demo",
-    "network-check": "node scripts/network-check.js",
-    "failure:demo": "node scripts/simulate-failure.js",
-    "test:concurrency": "node scripts/concurrency-test.js",
-    "test:crud": "node tests/events-crud.test.js",
-    "test": "node tests/run-all.js"
+    "test": "node tests/run-all.js",
+    "network-check": "node scripts/network-check.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-forge": "^1.4.3",
+    "pdfkit": "^0.16.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.1.0",
+    "xlsx": "^0.18.5"
   },
   "engines": {
     "node": ">=18"

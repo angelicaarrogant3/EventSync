@@ -6,7 +6,6 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-module.paths.push(path.resolve(__dirname, '../server/node_modules'));
 
 const http = require('http');
 const assert = require('assert');
@@ -15,7 +14,7 @@ const { initializeDatabase, db } = require('../server/src/db/connection');
 const app = require('../server/src/app');
 const { initializeSockets } = require('../server/src/sockets/socketManager');
 const { createAdministrator, failedLoginBuckets } = require('../server/src/services/auth.service');
-const { buildStartupLinks } = require('../server/src/utils/network');
+const { buildStartupLinks, getLocalIpAddresses, formatStartupBanner } = require('../server/src/utils/network');
 
 function requestJson(baseUrl, method, urlPath, body = null, cookie = '') {
   return new Promise((resolve, reject) => {
@@ -71,22 +70,38 @@ async function runAuthRbacTests() {
   const ts = Date.now();
 
   try {
-    // 1. Startup link-building function test
-    console.log('1. Startup link-building function...');
-    const links = buildStartupLinks({
-      protocol: 'http',
-      port: 3000,
-      lanAddresses: [
-        { interface: 'Wi-Fi', address: '192.168.1.14', label: 'Wi-Fi / LAN', priority: 1, isHotspot: false },
-        { interface: 'Hotspot', address: '192.168.137.1', label: 'Hotspot network', priority: 4, isHotspot: true }
-      ]
-    });
+    // 1. Startup link-building & banner builder tests
+    console.log('1. Startup link-building & banner builder...');
+    const fakeIfaces = {
+      'Loopback Pseudo-Interface 1': [{ family: 'IPv4', internal: true, address: '127.0.0.1' }],
+      'vEthernet (WSL)': [{ family: 'IPv4', internal: false, address: '172.25.80.1' }],
+      'Link-Local': [{ family: 'IPv4', internal: false, address: '169.254.10.20' }],
+      'Local Area Connection* 10': [{ family: 'IPv4', internal: false, address: '192.168.137.1' }],
+      'Ethernet': [{ family: 'IPv4', internal: false, address: '10.0.0.25' }],
+      'Wi-Fi': [{ family: 'IPv4', internal: false, address: '192.168.1.14' }]
+    };
+    const detected = getLocalIpAddresses(fakeIfaces);
+    const links = buildStartupLinks({ protocol: 'http', port: 3000, lanAddresses: detected });
+    assert.strictEqual(links.hasNetwork, true);
     assert.strictEqual(links.localUrl, 'http://localhost:3000');
     assert.strictEqual(links.networkUrl, 'http://192.168.1.14:3000');
     assert.strictEqual(links.hotspotUrl, 'http://192.168.137.1:3000');
     assert.strictEqual(links.loginUrl, 'http://192.168.1.14:3000/login');
     assert.strictEqual(links.signupUrl, 'http://192.168.1.14:3000/signup');
-    console.log('  [PASS] Local, Network, Hotspot, Login, and Signup links built accurately.');
+
+    const banner = formatStartupBanner({ links, copied: true, hasAdmin: true });
+    assert(banner.includes('EventSync is running!'));
+    assert(banner.includes('- Local:    http://localhost:3000'));
+    assert(banner.includes('- Network:  http://192.168.1.14:3000'));
+    assert(banner.includes('Copied local address to clipboard!'));
+
+    const offlineLinks = buildStartupLinks({ protocol: 'http', port: 3000, lanAddresses: [] });
+    assert.strictEqual(offlineLinks.hasNetwork, false);
+    assert.strictEqual(offlineLinks.networkUrl, null);
+    const offlineBanner = formatStartupBanner({ links: offlineLinks, copied: false, hasAdmin: false });
+    assert(offlineBanner.includes('No network detected. Connect to Wi-Fi to use other devices.'));
+    assert(offlineBanner.includes('No administrator yet. Run: npm run create-admin'));
+    console.log('  [PASS] Startup links & banner builder handle LAN, virtual/hotspot priority, and offline state.');
 
     // 2. Public signup cannot create an Administrator
     console.log('\n2. Public participant signup & role-escalation prevention...');
@@ -345,6 +360,30 @@ async function runAuthRbacTests() {
     `], { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' });
     fs.unlinkSync(tmpDbPath);
     console.log('  [PASS] Legacy database migrated safely with 100% data preserved.');
+
+    // 9. Station static assets, /config, /favicon.ico, and /api/attendance/live?eventId=
+    console.log('\n9. Station static assets & small bug fixes...');
+    const orgManifest = await httpReqText(`${baseUrl}/organizer/manifest.json`);
+    assert.strictEqual(orgManifest.status, 200);
+    const regManifest = await httpReqText(`${baseUrl}/registration/manifest.json`);
+    assert.strictEqual(regManifest.status, 200);
+    const scanManifest = await httpReqText(`${baseUrl}/scanner/manifest.json`);
+    assert.strictEqual(scanManifest.status, 200);
+    const cfgRes = await requestJson(baseUrl, 'GET', '/config');
+    assert.strictEqual(cfgRes.status, 200);
+    assert(cfgRes.data.node1Url);
+    const favRes = await httpReqText(`${baseUrl}/favicon.ico`);
+    assert.strictEqual(favRes.status, 200);
+
+    // Station HTML and APIs remain protected
+    const unauthOrgPage = await httpReqText(`${baseUrl}/organizer`);
+    assert.strictEqual(unauthOrgPage.status, 302);
+    const unauthLive = await requestJson(baseUrl, 'GET', `/api/attendance/live?eventId=${evId}`);
+    assert.strictEqual(unauthLive.status, 401);
+    const adminLive = await requestJson(baseUrl, 'GET', `/api/attendance/live?eventId=${evId}`, null, adminCookie);
+    assert.strictEqual(adminLive.status, 200);
+    assert.strictEqual(adminLive.data.ok, true);
+    console.log('  [PASS] Static station assets return 200 without auth; station HTML & /api/attendance/live remain protected.');
 
     console.log('\n================================================================');
     console.log('   ALL AUTH, RBAC, SOCKET & MIGRATION TESTS PASSED!             ');
