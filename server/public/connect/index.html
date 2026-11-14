@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>EventSync - Connect &amp; Device Hub</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <div class="brand-section">
+      <div class="brand-logo">ES</div>
+      <div class="brand-title">
+        <h1>EventSync</h1>
+        <p>School Events &amp; Attendance Network Hub</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+      <div class="server-status-pill">
+        <span class="pulse-dot"></span>
+        <span id="headerServerUrl">Checking server...</span>
+      </div>
+      <a href="/login" class="btn btn-primary" style="min-height:36px; padding:0.4rem 0.9rem; font-size:0.85rem;">Login</a>
+      <a href="/signup" class="btn btn-secondary" style="min-height:36px; padding:0.4rem 0.9rem; font-size:0.85rem;">Sign Up</a>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- Welcome & Network Links Hero -->
+    <section class="hero-card">
+      <div class="hero-text">
+        <h2>Connect Any Phone or Laptop on the Same Wi-Fi</h2>
+        <p>
+          Scan a QR code below or open the network link in your browser. Participants can sign up and get their event QR pass; Administrators can log in to manage events, register attendees, and scan QR codes.
+        </p>
+        <div class="hero-badges">
+          <span class="info-chip" id="chipProtocol">HTTP Mode</span>
+          <span class="info-chip" id="chipIp">IP: Detecting...</span>
+          <span class="info-chip" id="chipServerHealth">Server: Online</span>
+        </div>
+        <div id="networkLinksList" style="margin-top:0.85rem; font-size:0.9rem; line-height:1.6;"></div>
+        <p id="cameraNote" style="margin-top:0.65rem; font-size:0.82rem; color:#475569;"></p>
+      </div>
+      <div id="certQuickBtnWrap" style="display:none;">
+        <a href="#certGuide" class="btn btn-secondary" style="white-space: nowrap;">
+          Install SSL Certificate
+        </a>
+      </div>
+    </section>
+
+    <!-- Primary Access Cards (Login, Sign Up, Connect) -->
+    <section>
+      <h2 class="section-title">Quick Access Links</h2>
+      <p class="section-desc">Scan with your phone's camera or tap to open on this device.</p>
+
+      <div class="roles-grid">
+        <div class="role-card">
+          <div class="role-header">
+            <span class="role-badge badge-org">All Users</span>
+            <h3>Login</h3>
+            <p>Sign in as a Participant (view events &amp; QR pass) or Administrator (manage events &amp; stations).</p>
+          </div>
+          <div class="qr-preview-box">
+            <img id="qrLogin" src="" alt="Login QR Code">
+            <span class="qr-caption" id="urlLoginText">/login</span>
+          </div>
+          <a href="/login" class="btn btn-primary btn-block">Open Login</a>
+        </div>
+
+        <div class="role-card">
+          <div class="role-header">
+            <span class="role-badge badge-reg">Participants</span>
+            <h3>Participant Sign Up</h3>
+            <p>Create a new student/faculty/staff participant account to browse and register for open events.</p>
+          </div>
+          <div class="qr-preview-box">
+            <img id="qrSignup" src="" alt="Sign Up QR Code">
+            <span class="qr-caption" id="urlSignupText">/signup</span>
+          </div>
+          <a href="/signup" class="btn btn-primary btn-block">Create Account</a>
+        </div>
+
+        <div class="role-card">
+          <div class="role-header">
+            <span class="role-badge badge-scan">Hub</span>
+            <h3>This Connect Page</h3>
+            <p>Share this page's QR code so other phones and laptops on the same Wi-Fi can join quickly.</p>
+          </div>
+          <div class="qr-preview-box">
+            <img id="qrConnect" src="" alt="Connect Page QR Code">
+            <span class="qr-caption" id="urlConnectText">/connect</span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-block" id="btnCopyNetworkUrl">Copy Network Link</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Administrator Station Shortcuts -->
+    <section>
+      <h2 class="section-title">Administrator Stations</h2>
+      <p class="section-desc">Requires an Administrator account. You will be redirected to login if not signed in.</p>
+
+      <div class="roles-grid" id="rolesGrid">
+        <div class="role-card">
+          <div class="role-header">
+            <span class="role-badge badge-reg">Admin Station</span>
+            <h3>Registration Station</h3>
+            <p>Assisted participant registration, capacity checks, and printable QR passes.</p>
+          </div>
+          <div class="qr-preview-box">
+            <img id="qrRegistration" src="" alt="Registration QR Code">
+            <span class="qr-caption">Scan to open /registration</span>
+          </div>
+          <a href="/registration" class="btn btn-secondary btn-block">Open Registration</a>
+        </div>
+
+        <div class="role-card">
+          <div class="role-header">
+            <span class="role-badge badge-scan">Admin Station</span>
+            <h3>Attendance Scanner</h3>
+            <p>Camera QR verification, audio chimes, and persistent offline scan queue.</p>
+          </div>
+          <div class="qr-preview-box">
+            <img id="qrScanner" src="" alt="Scanner QR Code">
+            <span class="qr-caption">Scan to open /scanner</span>
+          </div>
+          <a href="/scanner" class="btn btn-secondary btn-block">Open Scanner</a>
+        </div>
+
+        <div class="role-card">
+          <div class="role-header">
+            <span class="role-badge badge-org">Admin Station</span>
+            <h3>Organizer Console</h3>
+            <p>Real-time attendance dashboard, cluster health, event CRUD, and CSV/XLSX/PDF reports.</p>
+          </div>
+          <div class="qr-preview-box">
+            <img id="qrOrganizer" src="" alt="Organizer QR Code">
+            <span class="qr-caption">Scan to open /organizer</span>
+          </div>
+          <a href="/organizer" class="btn btn-secondary btn-block">Open Organizer</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Certificate Trust Guide (Only visible when HTTPS is active) -->
+    <section class="cert-section" id="certGuide" style="display:none;">
+      <h2 class="section-title">Install &amp; Trust Local Root Certificate (HTTPS Mode)</h2>
+      <p class="section-desc">
+        HTTPS is active for phone camera scanning. Download and trust this server's local Root CA once if your browser shows a certificate warning:
+      </p>
+
+      <div class="cert-downloads-row">
+        <a href="/cert/rootCA.crt" class="btn btn-primary" download="EventSync-RootCA.crt">
+          Download Certificate (.crt - Android &amp; iOS)
+        </a>
+        <a href="/cert/rootCA.pem" class="btn btn-secondary" download="EventSync-RootCA.pem">
+          Download PEM (.pem - Laptops)
+        </a>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="accAndroid">
+          <span>Android (Google Chrome) Setup Steps</span>
+          <span>&#9662;</span>
+        </button>
+        <div class="accordion-body" id="accAndroid">
+          <ol>
+            <li>Tap <strong>Download Certificate (.crt)</strong> above.</li>
+            <li>Go to Android <strong>Settings &gt; Security &amp; privacy &gt; More security settings &gt; Encryption &amp; credentials &gt; Install a certificate &gt; CA certificate</strong>.</li>
+            <li>Tap <em>Install anyway</em> and select <code>EventSync-RootCA.crt</code>.</li>
+            <li>Refresh Chrome to enable full camera access.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="acciOS">
+          <span>iPhone / iPad (Safari) Setup Steps</span>
+          <span>&#9662;</span>
+        </button>
+        <div class="accordion-body" id="acciOS">
+          <ol>
+            <li>Tap <strong>Download Certificate (.crt)</strong> in Safari and tap <em>Allow</em>.</li>
+            <li>Go to <strong>Settings &gt; Profile Downloaded</strong> and tap <strong>Install</strong>.</li>
+            <li>Go to <strong>Settings &gt; General &gt; About &gt; Certificate Trust Settings</strong> and enable full trust for <strong>EventSync Distributed Root CA</strong>.</li>
+            <li>Reload Safari.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    document.querySelectorAll('.accordion-header').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const body = document.getElementById(btn.dataset.target);
+        if (body) body.classList.toggle('open');
+      });
+    });
+
+    let currentNetworkUrl = window.location.origin;
+
+    async function loadConnectInfo() {
+      try {
+        const [infoRes, healthRes] = await Promise.all([
+          fetch('/api/connect-info'),
+          fetch('/api/health').catch(() => null)
+        ]);
+        const json = await infoRes.json();
+        if (json.ok && json.data) {
+          const d = json.data;
+          currentNetworkUrl = d.networkUrl || d.baseUrl;
+
+          document.getElementById('headerServerUrl').textContent = `${d.serverHost}:${d.port}`;
+          document.getElementById('chipIp').textContent = `IP: ${d.serverHost}`;
+          document.getElementById('chipProtocol').textContent = d.isHttps ? 'HTTPS Active' : 'HTTP Mode (Default)';
+
+          const linksHtml = [
+            `<div><strong>Local (laptop):</strong> <a href="${d.localUrl}">${d.localUrl}</a></div>`,
+            `<div><strong>Network (phones/tablets):</strong> <a href="${d.networkUrl}">${d.networkUrl}</a></div>`,
+            d.hotspotUrl && d.hotspotUrl !== d.networkUrl
+              ? `<div><strong>Hotspot:</strong> <a href="${d.hotspotUrl}">${d.hotspotUrl}</a></div>`
+              : ''
+          ].join('');
+          document.getElementById('networkLinksList').innerHTML = linksHtml;
+
+          const cameraNote = document.getElementById('cameraNote');
+          if (d.isHttps) {
+            cameraNote.textContent = 'HTTPS is enabled — phone camera QR scanning is available on LAN.';
+            document.getElementById('certGuide').style.display = 'block';
+            document.getElementById('certQuickBtnWrap').style.display = 'block';
+          } else {
+            cameraNote.textContent = 'Camera note: Phone camera QR scanning requires HTTPS (run "npm run start:https" or set HTTPS=true in .env). Manual ID entry and all other features work on HTTP.';
+          }
+
+          if (d.loginQr) document.getElementById('qrLogin').src = d.loginQr;
+          if (d.signupQr) document.getElementById('qrSignup').src = d.signupQr;
+          if (d.connectQr) document.getElementById('qrConnect').src = d.connectQr;
+          document.getElementById('urlLoginText').textContent = d.loginUrl;
+          document.getElementById('urlSignupText').textContent = d.signupUrl;
+          document.getElementById('urlConnectText').textContent = d.connectUrl;
+
+          if (d.roles.registration?.qr) document.getElementById('qrRegistration').src = d.roles.registration.qr;
+          if (d.roles.scanner?.qr) document.getElementById('qrScanner').src = d.roles.scanner.qr;
+          if (d.roles.organizer?.qr) document.getElementById('qrOrganizer').src = d.roles.organizer.qr;
+        }
+
+        if (healthRes && healthRes.ok) {
+          const h = await healthRes.json();
+          if (h.ok) {
+            document.getElementById('chipServerHealth').textContent = `Server: Online (${h.data.database})`;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load connect info:', err);
+      }
+    }
+
+    document.getElementById('btnCopyNetworkUrl').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(currentNetworkUrl + '/connect');
+        const btn = document.getElementById('btnCopyNetworkUrl');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy Network Link'; }, 1800);
+      } catch {
+        prompt('Copy this link:', currentNetworkUrl + '/connect');
+      }
+    });
+
+    loadConnectInfo();
+  </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "name": "eventsync",
+  "version": "1.0.0",
+  "description": "EventSync: A Distributed Event Registration and Attendance Management System",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "start:server": "node server/src/index.js",
+    "start:http": "node -e \"process.env.HTTP_ONLY='true'; require('./server/src/index.js');\"",
+    "start:https": "node -e \"process.env.HTTPS='true'; require('./server/src/index.js');\"",
+    "start:registration": "node clients/registration/server.js",
+    "start:scanner": "node clients/scanner/server.js",
+    "start:organizer": "node clients/organizer/server.js",
+    "create-admin": "node scripts/create-admin.js",
+    "seed": "node scripts/seed.js",
+    "seed:demo": "node scripts/seed.js --demo",
+    "network-check": "node scripts/network-check.js",
+    "failure:demo": "node scripts/simulate-failure.js",
+    "test:concurrency": "node scripts/concurrency-test.js",
+    "test:crud": "node tests/events-crud.test.js",
+    "test": "node tests/run-all.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "distributed-systems",
+    "eventsync",
+    "attendance",
+    "qr-verification",
+    "socket-io",
+    "offline-sync"
+  ],
+  "author": "University Parallel and Distributed Computing Group",
+  "license": "ISC"
+}
+
