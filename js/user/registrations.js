@@ -3,13 +3,14 @@ import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import { openQrModal } from '/js/user/qr-modal.js';
 import { ICONS } from '/js/shared/icons.js';
+import { eventBannerHtml } from '/js/shared/event-images.js';
 
 const { profile } = await boot('user', 'registrations');
 let rows = [];
 
 async function load() {
   const { data, error } = await supabase.from('registrations')
-    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at),attendance(checked_in_at)')
+    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,image_path,image_updated_at),attendance(checked_in_at)')
     .order('registered_at', { ascending: false });
   if (error) return toast(errMsg(error), 'error');
   rows = data; render();
@@ -22,10 +23,16 @@ function render() {
     const started = r.events && new Date(r.events.starts_at) <= new Date();
     const label = r.status === 'cancelled' ? ['cancelled', 'Cancelled'] : att ? ['ok', `Attended · ${fmt(att.checked_in_at)}`] : ['registered', 'Registered'];
     const canCancel = r.status === 'registered' && !att && !started;
-    return `<div class="card hoverable fade-in"><h2>${esc(r.events?.title)}</h2>
-      <p class="muted sm">${ICONS.clock(14)} ${fmt(r.events?.starts_at)}<br>${ICONS.pin(14)} ${esc(r.events?.venue)}</p>
-      <p><span class="badge ${label[0]}">${label[1]}</span></p>
-      <div class="row">
+    return `<div class="card hoverable fade-in">
+      <div class="evt-reg-head">
+        ${eventBannerHtml(r.events || { title: 'Event' }, { variant: 'reg' })}
+        <div>
+          <h2>${esc(r.events?.title)}</h2>
+          <p class="muted sm">${ICONS.clock(14)} ${fmt(r.events?.starts_at)}<br>${ICONS.pin(14)} ${esc(r.events?.venue)}</p>
+          <p><span class="badge ${label[0]}">${label[1]}</span></p>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.6rem">
         ${r.status === 'registered' ? `<button class="btn" data-qr="${r.id}">${ICONS.qr(16)} View QR</button>` : ''}
         ${r.status === 'registered' && !att ? `<button class="btn ghost" data-cancel="${r.id}" ${canCancel ? '' : 'disabled title="Cancellation closes when the event starts"'}>Cancel</button>` : ''}
       </div>
@@ -37,7 +44,11 @@ $('#list').onclick = async e => {
   const q = e.target.closest('button[data-qr]');
   if (q) {
     const r = rows.find(x => x.id === q.dataset.qr);
-    return openQrModal({ token: r.qr_token, title: r.events?.title, startsAt: r.events?.starts_at, venue: r.events?.venue, name: profile.full_name || profile.email, schoolId: profile.school_id, course: profile.course });
+    return openQrModal({
+      token: r.qr_token, title: r.events?.title, startsAt: r.events?.starts_at, venue: r.events?.venue,
+      name: profile.full_name || profile.email, schoolId: profile.school_id, course: profile.course,
+      imagePath: r.events?.image_path, imageUpdatedAt: r.events?.image_updated_at
+    });
   }
   const b = e.target.closest('button[data-cancel]'); if (!b || b.disabled || !confirm('Cancel this registration? Your seat will be released.')) return;
   b.disabled = true;

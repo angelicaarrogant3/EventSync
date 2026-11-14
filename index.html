@@ -62,6 +62,17 @@
     </div>
   </section>
 
+  <section class="land-sec" id="upcoming">
+    <div class="land-sec-head">
+      <span class="eyebrow">Open for Registration</span>
+      <h2>Upcoming <span class="accent">events</span></h2>
+      <p class="muted">Browse published school events and reserve your QR pass.</p>
+    </div>
+    <div class="grid" id="upcomingGrid">
+      <div class="card empty" style="grid-column:1/-1">Loading upcoming events...</div>
+    </div>
+  </section>
+
   <section class="land-sec" id="features">
     <div class="land-sec-head">
       <span class="eyebrow">Powerful. Flexible. Intuitive.</span>
@@ -142,7 +153,9 @@
 <script type="module">
   import { getProfile, homeFor } from '/js/core/boot.js';
   import { supabase, configMissing } from '/js/core/supabase.js';
+  import { esc, fmt } from '/js/core/ui.js';
   import { ICONS } from '/js/shared/icons.js';
+  import { eventBannerHtml } from '/js/shared/event-images.js';
 
   document.getElementById('iEv').innerHTML = ICONS.calendar(18);
   document.getElementById('iReg').innerHTML = ICONS.users(18);
@@ -167,6 +180,27 @@
         document.getElementById('stBar').style.width = pct + '%';
       }
     } catch { /* show friendly placeholders */ }
+    try {
+      const { data: up } = await supabase.rpc('public_upcoming_events', { p_limit: 6 });
+      const ug = document.getElementById('upcomingGrid');
+      if (!up || !up.length) {
+        ug.innerHTML = '<div class="card empty" style="grid-column:1/-1">No upcoming events right now.</div>';
+      } else {
+        ug.innerHTML = up.map(e => {
+          const left = e.capacity ? Math.max(e.capacity - e.registered_count, 0) : null;
+          const full = e.capacity && e.registered_count >= e.capacity;
+          return `<div class="card hoverable fade-in">
+            ${eventBannerHtml(e, { variant: 'card' })}
+            <div class="stat-top" style="margin-bottom:.4rem"><h3 style="margin:0">${esc(e.title)}</h3><span class="badge ${full ? 'closed' : 'published'}">${full ? 'Full' : 'Open'}</span></div>
+            <p class="muted sm">${ICONS.clock(14)} ${fmt(e.starts_at)}<br>${ICONS.pin(14)} ${esc(e.venue)}</p>
+            <p class="sm" style="margin:.5rem 0 .8rem"><b>${e.registered_count}</b> registered${e.capacity ? ` / ${e.capacity} seats · <b>${left}</b> left` : ''}</p>
+            <a class="btn sm ${full ? 'ghost' : ''}" href="/signup">Register ${ICONS.arrowRight(14)}</a>
+          </div>`;
+        }).join('');
+      }
+    } catch {
+      document.getElementById('upcomingGrid').innerHTML = '<div class="card empty" style="grid-column:1/-1">Upcoming events unavailable offline.</div>';
+    }
   }
 </script>
 </body></html>
