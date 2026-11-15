@@ -28,7 +28,7 @@ export function errMsg(e) {
 /* ---------- network detection & recovery ---------- */
 const reconnectFns = new Set();
 let online = navigator.onLine, rtLive = false, started = false;
-export const onReconnect = fn => reconnectFns.add(fn);
+const onReconnect = fn => reconnectFns.add(fn);
 
 function paint() {
   const chip = $('#netChip'), bar = $('#netBanner');
@@ -93,20 +93,4 @@ export function initPasswordEyes(root = document) {
     };
     wrap.appendChild(btn);
   });
-}
-
-export function csvDownload(filename, rows) {
-  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
-/** Excel-compatible export (HTML table saved as .xls opens directly in Excel). */
-export function excelDownload(filename, rows) {
-  const cell = (v, th) => `<${th ? 'th' : 'td'} style="mso-number-format:'\\@'">${esc(v)}</${th ? 'th' : 'td'}>`;
-  const html = `<html><head><meta charset="utf-8"></head><body><table border="1">${rows.map((r, i) => `<tr>${r.map(v => cell(v, i === 0)).join('')}</tr>`).join('')}</table></body></html>`;
-  const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

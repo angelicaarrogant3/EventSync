@@ -144,7 +144,6 @@ export function buildSummaryModel(stats, generatedAt = new Date()) {
     rows: stats.map(e => { const reg = e.registered_count, att = e.attended_count; return [e.title, fmtDateTime(e.starts_at), fmtDateTime(e.ends_at), e.venue || '-', reg, att, Math.max(reg - att, 0), attendanceRate(reg, att) + '%']; })
   };
 }
-export const summaryCsv = m => '\ufeff' + [line([m.title]), ...m.header.map(line), '', line(m.columns), ...m.rows.map(line)].join('\r\n') + '\r\n';
 export function summaryWorkbook(ExcelJS, m) {
   const wb = new ExcelJS.Workbook(); wb.creator = 'EventSync';
   const ws = wb.addWorksheet('Summary', { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
