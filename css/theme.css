@@ -400,6 +400,18 @@ dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}
   .evt-media-reg{width:100%}
 }
 
+/* ---- BiPSU Program Selector & Legacy Banner ---- */
+.prog-sel{display:grid;gap:.65rem}
+.prog-sel select,.prog-sel input{font-size:16px;min-height:44px;width:100%}
+.prog-sel select:focus,.prog-sel input:focus{outline:none;border-color:#e50914;box-shadow:0 0 0 3px rgba(229,9,20,.28)}
+.prog-search-wrap{position:relative}
+.prog-results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;max-height:260px;overflow-y:auto;background:#121216;border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.6);padding:.35rem}
+.prog-grp{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fca5a5;padding:.45rem .6rem .2rem}
+.prog-opt{width:100%;min-height:44px;display:flex;justify-content:space-between;align-items:center;gap:.5rem;text-align:left;background:transparent;border:0;color:var(--text);padding:.45rem .6rem;border-radius:8px;cursor:pointer;font-size:.9rem}
+.prog-opt:hover,.prog-opt:focus-visible{background:rgba(229,9,20,.16);outline:none}
+.prog-empty{padding:.65rem;color:var(--text-muted);font-size:.88rem;text-align:center}
+.legacy-banner{background:rgba(229,9,20,.12);border:1px solid rgba(229,9,20,.45);border-radius:14px;padding:.85rem 1rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.65rem}
+
 @page{size:A4 landscape;margin:12mm}
 @media print{
   .topbar,.toolbar,#netBanner,.noprint,.evt-media{display:none!important}

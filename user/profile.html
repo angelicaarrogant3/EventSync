@@ -11,6 +11,7 @@
 </head><body>
 <main class="container">
 <div class="pagehead"><div><h1>My Profile</h1><p class="muted sm">School ID and email can only be changed by an administrator.</p></div></div>
+<div id="legacyBanner" class="legacy-banner" hidden role="status"><div><b>Please update your program</b><br><span class="sm muted">EventSync now uses official BiPSU Main Campus programs. Please select your School, Program, and Major (if applicable) below and click Save profile.</span></div></div>
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
   <div class="card"><h2>Details</h2>
     <form id="form" novalidate>
@@ -18,7 +19,7 @@
       <div class="two"><div><label>School ID</label><input id="school_id" disabled></div><div><label>Email</label><input id="email" disabled></div></div>
       <label>Contact number</label><input id="contact" type="tel" placeholder="09XXXXXXXXX or +639XXXXXXXXX"><div class="ferr" id="e_contact"></div>
       <label>I am a</label><select id="member_type"></select>
-      <label>Course / Department</label><select id="course"></select><input id="course_other" hidden placeholder="Type your course / department" style="margin-top:.4rem"><div class="ferr" id="e_course"></div>
+      <div id="progMount"></div>
       <div id="year_wrap" hidden><label>Year level</label><select id="year_level"></select><div class="ferr" id="e_year"></div></div>
       <label>Section</label><input id="section" maxlength="30">
       <button class="btn" style="margin-top:1rem">Save profile</button>

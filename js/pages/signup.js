@@ -29,7 +29,8 @@ $('#f').addEventListener('submit', async ev => {
       options: {
         emailRedirectTo: location.origin + '/login',
         data: { full_name: v.full_name, school_id: v.school_id, contact_number: v.contact_number, member_type: v.member_type,
-                course: v.course, year_level: v.year_level, section: v.section, consent: v.consent }
+                department: v.department, program: v.program, major: v.major, course: v.course,
+                year_level: v.year_level, section: v.section, consent: v.consent }
       }
     });
     if (error) {

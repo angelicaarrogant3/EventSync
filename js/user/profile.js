@@ -1,40 +1,76 @@
 import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch, initPasswordEyes } from '/js/core/ui.js';
-import { COURSES, OTHER_COURSE, MEMBER_TYPES, YEAR_LEVELS } from '/js/shared/participant-options.js';
+import { MEMBER_TYPES, YEAR_LEVELS, validateProgramSelection } from '/js/shared/participant-options.js';
+import { mountProgramSelector } from '/js/shared/program-selector.js';
 import { PH_CONTACT, passwordIssues } from '/js/shared/validation.js';
 
 const { profile } = await boot('user', 'profile');
 initPasswordEyes();
 
-$('#name').value = profile.full_name || ''; $('#school_id').value = profile.school_id || '(not set - ask an administrator)';
-$('#email').value = profile.email; $('#contact').value = profile.contact_number || ''; $('#section').value = profile.section || '';
+if (profile.program_needs_update) $('#legacyBanner').hidden = false;
+
+$('#name').value = profile.full_name || '';
+$('#school_id').value = profile.school_id || '(not set - ask an administrator)';
+$('#email').value = profile.email;
+$('#contact').value = profile.contact_number || '';
+$('#section').value = profile.section || '';
+
 $('#member_type').innerHTML = '<option value="">Select…</option>' + MEMBER_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
 $('#member_type').value = profile.member_type || '';
-$('#course').innerHTML = '<option value="">Select…</option>' + COURSES.concat(OTHER_COURSE).map(c => `<option>${esc(c)}</option>`).join('');
 $('#year_level').innerHTML = '<option value="">Select…</option>' + YEAR_LEVELS.map(y => `<option value="${y.value}">${y.label}</option>`).join('');
-if (profile.course && COURSES.includes(profile.course)) $('#course').value = profile.course;
-else if (profile.course) { $('#course').value = OTHER_COURSE; $('#course_other').value = profile.course; }
 $('#year_level').value = profile.year_level || '';
 
-const sync = () => { $('#year_wrap').hidden = $('#member_type').value !== 'student'; $('#course_other').hidden = $('#course').value !== OTHER_COURSE; };
-$('#member_type').onchange = sync; $('#course').onchange = sync; sync();
+const progSel = mountProgramSelector($('#progMount'), {
+  idPrefix: 'prof',
+  memberType: profile.member_type || '',
+  initial: {
+    department: profile.department || '',
+    program: profile.program || '',
+    major: profile.major || '',
+    course: profile.course || ''
+  }
+});
+
+const sync = () => {
+  const mt = $('#member_type').value;
+  $('#year_wrap').hidden = mt !== 'student';
+  progSel.setMemberType(mt);
+};
+$('#member_type').onchange = sync;
+sync();
 
 $('#form').onsubmit = async e => {
   e.preventDefault();
-  ['e_contact', 'e_course', 'e_year'].forEach(i => ($('#' + i).textContent = ''));
+  ['e_contact', 'e_year'].forEach(i => ($('#' + i).textContent = ''));
+  progSel.showErrors({});
   const contact = $('#contact').value.trim(), mt = $('#member_type').value;
-  const course = $('#course').value === OTHER_COURSE ? $('#course_other').value.trim() : $('#course').value;
+  const pv = progSel.values();
+  const res = validateProgramSelection({ member_type: mt, ...pv });
+
   let bad = false;
   if (contact && !PH_CONTACT.test(contact)) { $('#e_contact').textContent = 'Use 09XXXXXXXXX or +639XXXXXXXXX'; bad = true; }
-  if (!course) { $('#e_course').textContent = 'Course / Department is required'; bad = true; }
+  if (res.error) { progSel.showErrors({ [res.field || 'department']: res.error }); bad = true; }
   if (mt === 'student' && !$('#year_level').value) { $('#e_year').textContent = 'Select a year level'; bad = true; }
   if (bad) return;
-  const { error } = await supabase.from('profiles').update({   // only whitelisted columns are writable (see migration 003)
-    full_name: $('#name').value.trim(), contact_number: contact || null, member_type: mt || null, course,
-    year_level: mt === 'student' ? Number($('#year_level').value) : null, section: $('#section').value.trim() || null
+
+  const { error } = await supabase.from('profiles').update({
+    full_name: $('#name').value.trim(),
+    contact_number: contact || null,
+    member_type: mt || null,
+    department: res.department,
+    program: res.program,
+    major: res.major,
+    course: res.course,
+    program_needs_update: false,
+    year_level: mt === 'student' ? Number($('#year_level').value) : null,
+    section: $('#section').value.trim() || null
   }).eq('id', profile.id);
-  if (error) toast(errMsg(error), 'error'); else toast('Profile saved', 'success');
+  if (error) toast(errMsg(error), 'error');
+  else {
+    $('#legacyBanner').hidden = true;
+    toast('Profile saved', 'success');
+  }
 };
 
 $('#pwform').onsubmit = async e => {
