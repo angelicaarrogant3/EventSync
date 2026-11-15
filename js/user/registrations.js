@@ -4,6 +4,7 @@ import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import { openQrModal } from '/js/user/qr-modal.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
+import { formatProgramShort } from '/js/shared/participant-options.js';
 
 const { profile } = await boot('user', 'registrations');
 let rows = [];
@@ -46,7 +47,8 @@ $('#list').onclick = async e => {
     const r = rows.find(x => x.id === q.dataset.qr);
     return openQrModal({
       token: r.qr_token, title: r.events?.title, startsAt: r.events?.starts_at, venue: r.events?.venue,
-      name: profile.full_name || profile.email, schoolId: profile.school_id, course: profile.course,
+      name: profile.full_name || profile.email, schoolId: profile.school_id,
+      course: formatProgramShort({ ...profile, year_level: null }),
       imagePath: r.events?.image_path, imageUpdatedAt: r.events?.image_updated_at
     });
   }

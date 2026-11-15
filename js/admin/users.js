@@ -1,7 +1,10 @@
 import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
-import { COURSES } from '/js/shared/participant-options.js';
+import {
+  PROGRAM_SCHOOLS, ADMIN_OFFICE_SCHOOL, OTHER_SCHOOL_NAME, NEEDS_UPDATE_LABEL,
+  formatProgramShort, formatProgramFull
+} from '/js/shared/participant-options.js';
 
 const { profile: me } = await boot('admin', 'users');
 
@@ -10,14 +13,16 @@ let allUsers = [];
 let sortKey = 'created_at', sortDir = -1; // -1 = desc (newest signup first)
 let shown = PAGE_SIZE;
 
-const courseYear = u => u.course ? (u.member_type === 'student' && u.year_level ? `${u.course} ${u.year_level}` : u.course) : '—';
+const courseYear = u => formatProgramShort(u);
+const schoolLabel = u => u.program_needs_update ? NEEDS_UPDATE_LABEL : (u.department || '—');
 
 async function load() {
   const { data, error } = await supabase.rpc('admin_list_users');
   if (error) return toast(errMsg(error), 'error');
   allUsers = (data.users || []).filter(u => u.role === 'user');
   renderSummary();
-  populateCourses();
+  populateSchools();
+  populatePrograms();
   render();
 }
 
@@ -30,25 +35,44 @@ function renderSummary() {
   $('#sWeek').textContent = allUsers.filter(u => new Date(u.created_at).getTime() >= weekAgo).length;
 }
 
-function populateCourses() {
-  const cur = $('#fCourse').value;
-  const set = new Set(COURSES);
-  allUsers.forEach(u => { if (u.course) set.add(u.course); });
-  $('#fCourse').innerHTML = '<option value="">All courses</option>' + [...set].sort().map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  $('#fCourse').value = cur;
+function populateSchools() {
+  const cur = $('#fSchool').value;
+  const schools = [...PROGRAM_SCHOOLS.map(s => s.name), ADMIN_OFFICE_SCHOOL.name, OTHER_SCHOOL_NAME];
+  allUsers.forEach(u => { if (u.department && !schools.includes(u.department)) schools.push(u.department); });
+  $('#fSchool').innerHTML = '<option value="">All schools</option>' +
+    schools.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('') +
+    `<option value="${NEEDS_UPDATE_LABEL}">${NEEDS_UPDATE_LABEL}</option>`;
+  $('#fSchool').value = cur;
+}
+
+function populatePrograms() {
+  const sc = $('#fSchool').value;
+  const cur = $('#fProgram').value;
+  const set = new Set();
+  const src = sc ? PROGRAM_SCHOOLS.filter(s => s.name === sc) : PROGRAM_SCHOOLS;
+  src.forEach(s => s.programs.forEach(p => set.add(p.name)));
+  allUsers.forEach(u => {
+    if (u.program && (!sc || u.department === sc)) set.add(u.program);
+  });
+  $('#fProgram').innerHTML = '<option value="">All programs</option>' +
+    [...set].sort().map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('') +
+    `<option value="${NEEDS_UPDATE_LABEL}">${NEEDS_UPDATE_LABEL}</option>`;
+  if ([...$('#fProgram').options].some(o => o.value === cur)) $('#fProgram').value = cur;
 }
 
 function filteredSorted() {
   const q = $('#q').value.trim().toLowerCase();
-  const st = $('#fStatus').value, cr = $('#fCourse').value;
+  const st = $('#fStatus').value, sc = $('#fSchool').value, pr = $('#fProgram').value;
   const list = allUsers.filter(u => {
     if (st && u.status !== st) return false;
-    if (cr && u.course !== cr) return false;
-    if (q && !`${u.full_name} ${u.email} ${u.school_id || ''}`.toLowerCase().includes(q)) return false;
+    if (sc === NEEDS_UPDATE_LABEL ? !u.program_needs_update : (sc && u.department !== sc)) return false;
+    if (pr === NEEDS_UPDATE_LABEL ? !u.program_needs_update : (pr && u.program !== pr)) return false;
+    if (q && !`${u.full_name} ${u.email} ${u.school_id || ''} ${u.department || ''} ${u.program || ''} ${u.major || ''}`.toLowerCase().includes(q)) return false;
     return true;
   });
   list.sort((a, b) => {
     let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === 'department') { va = schoolLabel(a); vb = schoolLabel(b); }
     if (sortKey === 'course') { va = courseYear(a); vb = courseYear(b); }
     if (typeof va === 'number' || typeof vb === 'number') return ((va ?? 0) - (vb ?? 0)) * sortDir;
     return String(va ?? '').localeCompare(String(vb ?? ''), undefined, { sensitivity: 'base' }) * sortDir;
@@ -58,7 +82,7 @@ function filteredSorted() {
 
 const COLS = [
   ['full_name', 'Full Name'], ['school_id', 'School ID'], ['email', 'Email'],
-  ['course', 'Course / Year'], ['status', 'Status'],
+  ['department', 'School'], ['course', 'Program (Major) / Year'], ['status', 'Status'],
   ['created_at', 'Signed up'], ['events_registered', 'Registered'], ['events_attended', 'Attended']
 ];
 
@@ -76,7 +100,8 @@ function render() {
       <td data-label="Full Name"><b>${esc(u.full_name || '—')}</b>${u.member_type ? `<br><small class="muted">${esc(u.member_type)}</small>` : ''}</td>
       <td data-label="School ID">${esc(u.school_id || '—')}</td>
       <td data-label="Email">${esc(u.email)}</td>
-      <td data-label="Course / Year">${esc(courseYear(u))}</td>
+      <td data-label="School">${esc(schoolLabel(u))}</td>
+      <td data-label="Program (Major) / Year" title="${esc(formatProgramFull(u))}">${esc(courseYear(u))}</td>
       <td data-label="Status"><span class="badge ${u.status === 'active' ? 'ok' : 'cancelled'}">${u.status}</span></td>
       <td data-label="Signed up">${fmt(u.created_at)}</td>
       <td data-label="Registered">${u.events_registered}</td>
@@ -102,7 +127,8 @@ $('#list').addEventListener('click', ev => {
   const tr = ev.target.closest('tr[data-uid]');
   if (tr) openDetail(tr.dataset.uid);
 });
-['#q', '#fStatus', '#fCourse'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', () => { shown = PAGE_SIZE; render(); }));
+$('#fSchool').addEventListener('change', () => { populatePrograms(); shown = PAGE_SIZE; render(); });
+['#q', '#fStatus', '#fProgram'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', () => { shown = PAGE_SIZE; render(); }));
 $('#loadMore').onclick = () => { shown += PAGE_SIZE; render(); };
 
 /* ---- detail panel + actions ---- */
@@ -124,7 +150,8 @@ async function openDetail(uid) {
       <div><b>School ID:</b> ${esc(u.school_id || '—')}</div>
       <div><b>Contact:</b> ${esc(u.contact_number || '—')}</div>
       <div><b>Type:</b> ${esc(u.member_type || '—')}</div>
-      <div><b>Course / Year:</b> ${esc(courseYear(u))}</div>
+      <div><b>School:</b> ${esc(schoolLabel(u))}</div>
+      <div><b>Program / Year:</b> ${esc(formatProgramFull(u))}</div>
       <div><b>Section:</b> ${esc(u.section || '—')}</div>
       <div><b>Signed up:</b> ${fmt(u.created_at)}</div>
     </div>
@@ -175,8 +202,8 @@ $('#exportXlsx').onclick = async () => {
     if (error) throw error;
     const wb = new window.ExcelJS.Workbook(); wb.creator = 'EventSync';
     const ws = wb.addWorksheet('Users', { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-    const head = ['Full Name', 'School ID', 'Email', 'Course / Year', 'Status', 'Signed up', 'Events Registered', 'Events Attended'];
-    const data = rows.map(u => [u.full_name || '-', u.school_id || '-', u.email, courseYear(u), u.status, fmt(u.created_at), u.events_registered, u.events_attended]);
+    const head = ['Full Name', 'School ID', 'Email', 'School', 'Program (Major) / Year', 'Status', 'Signed up', 'Events Registered', 'Events Attended'];
+    const data = rows.map(u => [u.full_name || '-', u.school_id || '-', u.email, schoolLabel(u), courseYear(u), u.status, fmt(u.created_at), u.events_registered, u.events_attended]);
     head.forEach((h, i) => {
       const c = ws.getCell(1, i + 1);
       c.value = h; c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E9F5' } };

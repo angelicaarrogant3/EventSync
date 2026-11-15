@@ -18,8 +18,8 @@ const sampleData = (overrides = {}) => ({
   },
   filter: 'all',
   rows: [
-    { full_name: 'Angeline Gwapa', school_id: '2023-001', course: 'BSIT', year_level: 3, member_type: 'student', time_in: '2026-11-14T12:52:00.000Z', present: true },
-    { full_name: 'Maria Clara De Los Santos-Villanueva Jr.', school_id: '2023-002', course: 'Engineering', year_level: 4, member_type: 'student', time_in: null, present: false }
+    { full_name: 'Angeline Gwapa', school_id: '2023-001', department: 'School of Technology and Computer Studies', program: 'Bachelor of Science in Computer Science', major: null, year_level: 3, member_type: 'student', time_in: '2026-11-14T12:52:00.000Z', present: true },
+    { full_name: 'Maria Clara De Los Santos-Villanueva Jr.', school_id: '2023-002', department: 'School of Engineering', program: 'Bachelor of Science in Civil Engineering', major: null, year_level: 4, member_type: 'student', time_in: null, present: false }
   ],
   totals: { registered: 2, present: 1, absent: 1 },
   ...overrides
@@ -55,7 +55,7 @@ test('CSV export: UTF-8 BOM, sections in order, quotes fields with commas', asyn
   assert.ok(csv.startsWith('\ufeffEVENT ATTENDANCE SHEET'), 'must start with UTF-8 BOM + title');
   assert.ok(csv.includes('"Laag, Annual Meetup"'), 'event title with comma is quoted');
   assert.ok(csv.includes('"Ila Apple, Hall B"'), 'venue with comma is quoted');
-  assert.ok(csv.includes('No.,Full Name,School ID,Course / Year,Role,Time In,Attendance'));
+  assert.ok(csv.includes('No.,Full Name,School ID,Program (Major) / Year,Role,Time In,Attendance'));
   assert.ok(csv.includes('Total Registered,2'));
   assert.ok(csv.includes('Prepared by:'));
 });
@@ -65,7 +65,7 @@ test('Excel (.xlsx): merged centered title, column widths fit long names/dates, 
   const longName = 'Alexandria Constantino-Magtanggol de la Cruz III';
   const data = sampleData({
     rows: [
-      { full_name: longName, school_id: '2024-00999', course: 'Nursing', year_level: 2, member_type: 'student', time_in: '2026-11-14T12:52:00.000Z', present: true }
+      { full_name: longName, school_id: '2024-00999', department: 'School of Nursing and Health Sciences', program: 'Bachelor of Science in Nursing', major: null, year_level: 2, member_type: 'student', time_in: '2026-11-14T12:52:00.000Z', present: true }
     ],
     totals: { registered: 1, present: 1, absent: 0 }
   });

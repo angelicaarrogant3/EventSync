@@ -2,6 +2,7 @@ import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import { mountParticipantForm } from '/js/shared/participant-form.js';
+import { formatProgramShort, formatProgramFull } from '/js/shared/participant-options.js';
 
 await boot('admin', 'registrations');
 let rows = [];
@@ -16,7 +17,7 @@ async function loadEvents() {
 }
 
 async function load() {
-  let q = supabase.from('registrations').select('id,status,registered_at,event_id,profiles(full_name,email,school_id,course,year_level,section,contact_number,member_type),events(title),attendance(checked_in_at)').order('registered_at', { ascending: false }).limit(1000);
+  let q = supabase.from('registrations').select('id,status,registered_at,event_id,profiles(full_name,email,school_id,department,program,major,program_needs_update,course,year_level,section,contact_number,member_type),events(title),attendance(checked_in_at)').order('registered_at', { ascending: false }).limit(1000);
   if ($('#ev').value) q = q.eq('event_id', $('#ev').value);
   const { data, error } = await q;
   if (error) return toast(errMsg(error), 'error');
@@ -27,9 +28,9 @@ function render() {
   const s = $('#q').value.toLowerCase();
   const list = rows.filter(r => !s || Object.values(r.profiles || {}).join(' ').toLowerCase().includes(s));
   if (!list.length) { $('#list').innerHTML = '<div class="card empty">No registrations found.</div>'; return; }
-  $('#list').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Participant</th><th>School ID</th><th>Course</th><th>Year</th><th>Section</th><th>Contact</th><th>Email</th><th>Event</th><th>Registered</th><th>Status</th><th>Attendance</th><th></th></tr></thead><tbody>${list.map(r => {
+  $('#list').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Participant</th><th>School ID</th><th>Program (Major)</th><th>Year</th><th>Section</th><th>Contact</th><th>Email</th><th>Event</th><th>Registered</th><th>Status</th><th>Attendance</th><th></th></tr></thead><tbody>${list.map(r => {
     const p = r.profiles || {}, att = Array.isArray(r.attendance) ? r.attendance[0] : r.attendance;
-    return `<tr><td data-label="Participant">${esc(p.full_name)}<br><small class="muted">${esc(p.member_type || '')}</small></td><td data-label="School ID">${esc(p.school_id || '—')}</td><td data-label="Course">${esc(p.course || '—')}</td><td data-label="Year">${p.year_level ?? '—'}</td><td data-label="Section">${esc(p.section || '—')}</td><td data-label="Contact">${esc(p.contact_number || '—')}</td><td data-label="Email">${esc(p.email)}</td><td data-label="Event">${esc(r.events?.title)}</td><td data-label="Registered">${fmt(r.registered_at)}</td>
+    return `<tr><td data-label="Participant">${esc(p.full_name)}<br><small class="muted">${esc(p.member_type || '')}</small></td><td data-label="School ID">${esc(p.school_id || '—')}</td><td data-label="Program (Major)" title="${esc(formatProgramFull(p))}">${esc(formatProgramShort({ ...p, year_level: null }))}</td><td data-label="Year">${p.year_level ?? '—'}</td><td data-label="Section">${esc(p.section || '—')}</td><td data-label="Contact">${esc(p.contact_number || '—')}</td><td data-label="Email">${esc(p.email)}</td><td data-label="Event">${esc(r.events?.title)}</td><td data-label="Registered">${fmt(r.registered_at)}</td>
     <td data-label="Status"><span class="badge ${r.status}">${r.status}</span></td>
     <td data-label="Attendance">${att ? `<span class="badge ok">In ${fmt(att.checked_in_at)}</span>` : '<span class="badge">Not yet</span>'}</td>
     <td data-label="Action">${att ? '' : r.status === 'registered' ? `<button class="btn sm danger" data-id="${r.id}" data-s="cancelled">Cancel</button>` : `<button class="btn sm ok" data-id="${r.id}" data-s="registered">Reinstate</button>`}</td></tr>`;

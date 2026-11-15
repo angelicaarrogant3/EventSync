@@ -1,7 +1,9 @@
 // Attendance-sheet model + CSV / Excel generators. Pure (no DOM, no network) so it can be unit-tested in Node.
 // The data comes from the admin-only RPC attendance_sheet(); totals are computed by the database.
+import { formatProgramShort } from '../../config/programs.js';
+
 export const TZ = 'Asia/Manila';
-export const COLUMNS = ['No.', 'Full Name', 'School ID', 'Course / Year', 'Role', 'Time In', 'Attendance'];
+export const COLUMNS = ['No.', 'Full Name', 'School ID', 'Program (Major) / Year', 'Role', 'Time In', 'Attendance'];
 const clean = s => s.replace(/[\u202f\u00a0]/g, ' ');
 
 export const fmtDateTime = d => d ? clean(new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(d))) : '-';
@@ -9,7 +11,6 @@ export const fmtTime = d => d ? clean(new Intl.DateTimeFormat('en-US', { timeZon
 export const fmtDate = d => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(d));   // YYYY-MM-DD
 
 const ROLE = { student: 'Student', faculty: 'Faculty', staff: 'Staff' };
-const courseYear = r => r.course ? (r.member_type === 'student' && r.year_level ? `${r.course} ${r.year_level}` : r.course) : '-';
 
 export const attendanceRate = (registered, present) => registered > 0 ? Math.round(present / registered * 100) : 0;   // never divides by zero
 
@@ -18,10 +19,24 @@ export function buildSheetModel(data, generatedAt = new Date()) {
   const t = data.totals, ev = data.event;
   const header = [['Event', ev.title], ['Starts', fmtDateTime(ev.starts_at)], ['Ends', fmtDateTime(ev.ends_at)], ['Venue', ev.venue || '-'], ['Generated', fmtDateTime(generatedAt)]];
   if (data.filter === 'present') header.push(['Showing', 'Present only']);
+
+  const bySchool = new Map();
+  for (const r of data.rows) {
+    const sc = r.department || 'Unspecified';
+    const cur = bySchool.get(sc) || { reg: 0, pres: 0 };
+    cur.reg += 1;
+    if (r.present) cur.pres += 1;
+    bySchool.set(sc, cur);
+  }
+  const schoolBreakdown = [...bySchool.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([sc, v]) => [sc, v.reg, v.pres, v.reg - v.pres]);
+
   return {
     title: 'EVENT ATTENDANCE SHEET', header, columns: COLUMNS,
-    rows: data.rows.map((r, i) => [i + 1, r.full_name, r.school_id || '-', courseYear(r), ROLE[r.member_type] || '-', r.present ? fmtTime(r.time_in) : '-', r.present ? 'Present' : 'Absent']),
+    rows: data.rows.map((r, i) => [i + 1, r.full_name, r.school_id || '-', formatProgramShort(r), ROLE[r.member_type] || '-', r.present ? fmtTime(r.time_in) : '-', r.present ? 'Present' : 'Absent']),
     totals: [['Total Registered', t.registered], ['Total Present', t.present], ['Total Absent', t.absent], ['Attendance Rate', attendanceRate(t.registered, t.present) + '%']],
+    schoolBreakdown,
     signatures: ['Prepared by: ______________________', 'Verified by: ______________________'],
     eventTitle: ev.title, eventStart: ev.starts_at, generatedAt
   };
@@ -38,13 +53,14 @@ export function toCsv(m) {
 
 /* ---------------- Excel (.xlsx) via ExcelJS ---------------- */
 const BORDER = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-const MIN_W = [6, 24, 14, 16, 10, 10, 12];
+const MIN_W = [6, 24, 14, 26, 10, 10, 12];
 const MAX_NAME_W = 60;
 
 export function columnWidths(m) {
   const w = m.columns.map((c, i) => {
     const longest = Math.max(String(c).length, ...m.rows.map(r => String(r[i]).length));
-    return Math.max(MIN_W[i], Math.min(longest + 3, i === 1 ? MAX_NAME_W : 40));
+    const cap = i === 1 ? MAX_NAME_W : i === 3 ? 52 : 40;
+    return Math.max(MIN_W[i], Math.min(longest + 3, cap));
   });
   // header-block values live in merged C:G; widen D if they would not fit
   const need = Math.max(...m.header.map(h => String(h[1]).length)) + 3;
@@ -93,6 +109,22 @@ export function buildWorkbook(ExcelJS, m) {
     a.value = label + ':'; a.font = { bold: true }; b.value = value; b.alignment = { horizontal: 'left' }; b.font = { bold: true };
     r++;
   }
+  if (m.schoolBreakdown?.length) {
+    r++;
+    ws.mergeCells(r, 1, r, 4);
+    const sh = ws.getCell(r, 1); sh.value = 'Attendance by School / Office'; sh.font = { bold: true };
+    r++;
+    ['School / Office', 'Registered', 'Present', 'Absent'].forEach((h, i) => {
+      const c = ws.getCell(r, i + 1);
+      c.value = h; c.font = { bold: true }; c.border = BORDER;
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E9F5' } };
+    });
+    r++;
+    for (const row of m.schoolBreakdown) {
+      row.forEach((v, i) => { const c = ws.getCell(r, i + 1); c.value = v; c.border = BORDER; });
+      r++;
+    }
+  }
   r += 2;
   ws.mergeCells(r, 1, r, 3); ws.mergeCells(r, 4, r, last);
   ws.getCell(r, 1).value = m.signatures[0]; ws.getCell(r, 4).value = m.signatures[1];
@@ -137,5 +169,8 @@ export function renderPrintHtml(m) {
     <table class="sheet-table"><thead><tr>${m.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
       <tbody>${m.rows.map(r => `<tr>${r.map((v, i) => `<td class="${[0, 5, 6].includes(i) ? 'c' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${m.columns.length}" class="c">No attendees</td></tr>`}</tbody></table>
     <div class="sheet-totals">${m.totals.map(([k, v]) => `<div><b>${esc(k)}:</b> ${esc(v)}</div>`).join('')}</div>
+    ${m.schoolBreakdown?.length ? `<h3 style="margin:.9rem 0 .4rem;font-size:.95rem">Attendance by School / Office</h3>
+      <table class="sheet-table"><thead><tr><th>School / Office</th><th>Registered</th><th>Present</th><th>Absent</th></tr></thead>
+      <tbody>${m.schoolBreakdown.map(([sc, reg, pres, abs]) => `<tr><td>${esc(sc)}</td><td class="c">${reg}</td><td class="c">${pres}</td><td class="c">${abs}</td></tr>`).join('')}</tbody></table>` : ''}
     <div class="sheet-sign"><span>${esc(m.signatures[0])}</span><span>${esc(m.signatures[1])}</span></div></div>`;
 }

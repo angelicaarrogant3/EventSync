@@ -4,6 +4,7 @@ import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import { openQrModal } from '/js/user/qr-modal.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
+import { formatProgramShort } from '/js/shared/participant-options.js';
 
 const { profile } = await boot('user', 'events');
 let events = [];                 // published events (events table => live registered_count)
@@ -66,7 +67,8 @@ function showQr(eventId) {
   if (!e || !r) return;
   openQrModal({
     token: r.qr_token, title: e.title, startsAt: e.starts_at, venue: e.venue,
-    name: profile.full_name || profile.email, schoolId: profile.school_id, course: profile.course,
+    name: profile.full_name || profile.email, schoolId: profile.school_id,
+    course: formatProgramShort({ ...profile, year_level: null }),
     imagePath: e.image_path, imageUpdatedAt: e.image_updated_at
   });
 }
