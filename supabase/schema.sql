@@ -941,3 +941,6 @@ create policy event_images_admin_delete
 
 notify pgrst, 'reload schema';
 
+-- ===== Migration 008 (BiPSU Main Campus programs) =====
+-- See supabase/migrations/008_bipsu_programs.sql (applied to live DB).
+

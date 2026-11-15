@@ -22,7 +22,12 @@ after(async () => { if (c) await c.end(); });
 beforeEach(async () => { if (c) await c.query('begin'); });
 afterEach(async () => { if (c) await c.query('rollback'); });
 
-const base = () => ({ full_name: 'Test Person', school_id: 'T-' + rnd(), member_type: 'student', course: 'BSIT', year_level: '2', section: 'A', contact_number: '09171234567', consent: 'true' });
+const base = () => ({
+  full_name: 'Test Person', school_id: 'T-' + rnd(), member_type: 'student',
+  department: 'School of Technology and Computer Studies',
+  program: 'Bachelor of Science in Computer Science', major: '',
+  year_level: '2', section: 'A', contact_number: '09171234567', consent: 'true'
+});
 
 async function signup(meta, email = `t-${rnd()}@school.test`, appMeta = '{"provider":"email","providers":["email"]}') {
   const id = (await c.query(
@@ -44,7 +49,9 @@ test('valid signup: account + profile created together with all fields, role = p
   const m = base(), { id, email } = await signup(m);
   const p = await profile(id);
   assert.equal(p.role, 'user'); assert.equal(p.email, email);
-  assert.equal(p.school_id, m.school_id); assert.equal(p.course, 'BSIT'); assert.equal(p.year_level, 2);
+  assert.equal(p.school_id, m.school_id); assert.equal(p.course, 'BS Computer Science'); assert.equal(p.year_level, 2);
+  assert.equal(p.department, 'School of Technology and Computer Studies');
+  assert.equal(p.program, 'Bachelor of Science in Computer Science');
   assert.equal(p.member_type, 'student'); assert.equal(p.section, 'A'); assert.equal(p.contact_number, '09171234567');
   assert.ok(p.consent_at, 'consent timestamp stored');
 });
@@ -69,7 +76,8 @@ test('missing / invalid required fields are rejected by the server', { skip }, a
   await rejects({ ...base(), school_id: '' }, /School ID/);
   await rejects({ ...base(), member_type: '' }, /Student, Faculty or Staff/);
   await rejects({ ...base(), member_type: 'admin' }, /Student, Faculty or Staff/);
-  await rejects({ ...base(), course: '' }, /Course/);
+  await rejects({ ...base(), department: '' }, /School/i);
+  await rejects({ ...base(), program: '' }, /Program/i);
   await rejects({ ...base(), year_level: '' }, /Year level/);
   await rejects({ ...base(), consent: 'false' }, /consent/i);
   await rejects({ ...base(), contact_number: '12345' }, /Contact number/);
@@ -120,7 +128,7 @@ test('admin_register_participant: admins can create a full participant; particip
   const payload = { ...base(), email: `adm-${rnd()}@school.test`, password: 'Secret123' };
   const out = (await as(adminId, 'select public.admin_register_participant($1::jsonb) r', [JSON.stringify(payload)]))[0].r;
   const p = await profile(out.id);
-  assert.equal(p.role, 'user'); assert.equal(p.school_id, payload.school_id); assert.equal(p.course, 'BSIT');
+  assert.equal(p.role, 'user'); assert.equal(p.school_id, payload.school_id); assert.equal(p.course, 'BS Computer Science');
 
   await c.query('savepoint s');
   await assert.rejects(as(userId, 'select public.admin_register_participant($1::jsonb)', [JSON.stringify({ ...base(), email: `x-${rnd()}@school.test`, password: 'Secret123' })]), /Admin only/);

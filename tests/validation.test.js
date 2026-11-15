@@ -6,7 +6,9 @@ let V;
 const load = async () => (V ||= await import('../js/shared/validation.js'));
 const good = () => ({
   full_name: 'Juan Dela Cruz', school_id: '2024-00123', email: 'juan@school.edu.ph', contact_number: '09171234567',
-  member_type: 'student', course: 'BSIT', year_level: '2', section: 'A', password: 'Secret123', confirm_password: 'Secret123', consent: true
+  member_type: 'student', department: 'School of Technology and Computer Studies',
+  program: 'Bachelor of Science in Computer Science', major: '',
+  year_level: '2', section: 'A', password: 'Secret123', confirm_password: 'Secret123', consent: true
 });
 
 test('valid signup passes', async () => {
@@ -36,14 +38,14 @@ test('mismatched confirm password rejected', async () => {
 test('missing required fields are all reported', async () => {
   const { validateParticipant } = await load();
   const e = validateParticipant({ contact_number: '', section: '', password: '', confirm_password: '' });
-  for (const k of ['full_name', 'school_id', 'email', 'member_type', 'course', 'password', 'consent']) assert.ok(e[k], k + ' should be required');
+  for (const k of ['full_name', 'school_id', 'email', 'member_type', 'department', 'password', 'consent']) assert.ok(e[k], k + ' should be required');
   assert.ok(validateParticipant({ ...good(), consent: false }).consent, 'consent is required');
 });
 
 test('year level is required for students only', async () => {
   const { validateParticipant } = await load();
   assert.ok(validateParticipant({ ...good(), year_level: '' }).year_level);
-  assert.equal(validateParticipant({ ...good(), member_type: 'faculty', year_level: '' }).year_level, undefined);
+  assert.equal(validateParticipant({ ...good(), member_type: 'faculty', program: '', year_level: '' }).year_level, undefined);
   assert.ok(validateParticipant({ ...good(), year_level: '5' }).year_level);
 });
 

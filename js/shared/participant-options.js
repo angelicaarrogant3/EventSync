@@ -1,13 +1,24 @@
-// ONE place to edit the dropdown choices used by the sign-up form, the profile page and the admin form.
+// ONE place for member types, year levels, and BiPSU program choices (from config/programs.js).
+export {
+  PROGRAM_SCHOOLS,
+  ADMIN_OFFICE_SCHOOL,
+  OTHER_SCHOOL_CODE,
+  OTHER_SCHOOL_NAME,
+  NEEDS_UPDATE_LABEL,
+  findSchool,
+  findProgram,
+  findSchoolForProgram,
+  searchPrograms,
+  validateProgramSelection,
+  formatProgramShort,
+  formatProgramFull
+} from '../../config/programs.js';
+
 export const MEMBER_TYPES = [
   { value: 'student', label: 'Student' },
   { value: 'faculty', label: 'Faculty' },
   { value: 'staff',   label: 'Staff' }
 ];
-
-// Add / remove / rename courses here. "Other" shows a free-text box.
-export const COURSES = ['BSIT', 'BSCS', 'BSBA', 'BSED', 'BEED', 'Engineering', 'Nursing'];
-export const OTHER_COURSE = 'Other';
 
 export const YEAR_LEVELS = [
   { value: 1, label: '1st year' }, { value: 2, label: '2nd year' },

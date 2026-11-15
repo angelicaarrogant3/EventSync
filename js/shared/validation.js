@@ -1,5 +1,7 @@
-// Pure validation helpers (no DOM, no imports) - shared by the browser forms and the Node tests.
+// Pure validation helpers (no DOM) - shared by the browser forms and the Node tests.
 // The database repeats these checks server-side (validate_participant); never rely on the client alone.
+import { validateProgramSelection } from '../../config/programs.js';
+
 export const PH_CONTACT = /^(09\d{9}|\+639\d{9})$/;
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const SCHOOL_ID_RE = /^[A-Za-z0-9-]{4,20}$/;
@@ -22,8 +24,14 @@ export function validateParticipant(v, { requirePassword = true } = {}) {
   if (!EMAIL_RE.test(s(v.email))) e.email = 'Enter a valid email address';
   if (s(v.contact_number) && !PH_CONTACT.test(s(v.contact_number))) e.contact_number = 'Use 09XXXXXXXXX or +639XXXXXXXXX';
   if (!['student', 'faculty', 'staff'].includes(v.member_type)) e.member_type = 'Select Student, Faculty or Staff';
-  if (!s(v.course)) e.course = 'Course / Department is required';
-  if (s(v.course).length > 60) e.course = 'Course / Department is too long';
+  const pv = validateProgramSelection({
+    member_type: v.member_type,
+    department: v.department,
+    program: v.program,
+    major: v.major,
+    course: v.course
+  });
+  if (pv.error) e[pv.field || 'course'] = pv.error;
   if (v.member_type === 'student' && !/^[1-4]$/.test(String(v.year_level ?? ''))) e.year_level = 'Select a year level';
   if (s(v.section).length > 30) e.section = 'Section is too long';
   if (requirePassword) {
