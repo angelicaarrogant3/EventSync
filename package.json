@@ -4,7 +4,7 @@
   "description": "EventSync: Distributed Event Registration and Attendance Management System",
   "private": true,
   "scripts": {
-    "start": "serve . -l tcp://127.0.0.1:8080 --no-clipboard",
+    "start": "node tools/dev-server.js",
     "build": "node tools/generate-config.js",
     "test": "node --test \"tests/*.test.js\"",
     "create-admin": "node tools/create-admin.js"
