@@ -62,8 +62,13 @@ Tables `events`, `registrations`, `attendance`, `activity_logs` are added to the
 ## Testing
 See [TESTING.md](TESTING.md) for the multi-device distributed test plan.
 
-## Participant sign-up fields
-The sign-up, profile and admin 'Register a participant' forms share one component (`js/shared/participant-form.js`). Edit the courses, member types and year levels in **one file**: `js/shared/participant-options.js`. Validation rules live in `js/shared/validation.js` (client) and `validate_participant()` in the database (server, authoritative). Run `supabase/migrations/002` and `003` on existing databases (they are also appended to `schema.sql` for new ones). In Supabase -> Authentication -> Sign In / Providers -> Email set **Minimum password length = 8** and **Password requirements = Letters and digits** so the password rule is also enforced by the auth server.
+## Participant sign-up fields & BiPSU Main Campus Programs
+The sign-up, profile, and admin 'Register a participant' forms share one component (`js/shared/participant-form.js`) and one searchable School -> Program -> Major selector (`js/shared/program-selector.js`).
+- **Single source of truth:** All BiPSU Main Campus schools, programs, and majors live in **`config/programs.js`** (and `public.program_catalog` in PostgreSQL via `supabase/migrations/008_bipsu_programs.sql`).
+- **Database fields on `public.profiles`:** `department` (School / Office or Other), `program` (official program name or custom text), `major` (nullable; required only for programs with majors like BSED, BSBA, BSIT), `course` (short display label kept in sync), and `program_needs_update` (`boolean`, flags legacy accounts that could not be auto-mapped cleanly).
+- **Server validation:** `resolve_program_selection()` + `validate_participant()` + `validate_profile_update()` reject unknown schools/programs, missing required majors, extra majors on non-major programs, and missing year levels for Students.
+- **User guide:** Students pick **School / College** -> **Program** -> **Major** (if applicable) -> **Year level** (1st–4th year), or use the **Search program** box (e.g. typing `"comp"`). Faculty/Staff pick **School / Office** (including `Administrative / Office`) without a year level. Guests can choose **Other / Not listed**. Legacy accounts flagged `program_needs_update` see a banner on `/user/profile` prompting them to select their official program.
+- **Defense Q&A — Why does the program list live in one config file?** Keeping all schools, programs, and majors in `config/programs.js` (mirrored by `public.program_catalog` on the database) eliminates duplicate hard-coded lists across forms, filters, QR tickets, and reports, prevents spelling/validation drift, and lets the school update or add a program in one place.
 
 ## Event Images (Database, Architecture, User Manual & Defense Q&A)
 
