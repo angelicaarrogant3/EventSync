@@ -12,7 +12,7 @@ Prerequisites: README setup done, one admin account, 2+ participant accounts, HT
 
 ## Mode B – 3–4 laptops
 Laptop 1 `/admin/events` · Laptop 2 `/user/events` · Laptop 3 `/admin/scan` (use *manual code entry* if no webcam/HTTPS) · Laptop 4 `/admin/monitor` + `/admin/reports`.
-Use `http://<host-ip>:8080` over LAN or the public URL.
+Use your deployed HTTPS URL (or `http://localhost:8080` for local testing).
 
 ## Test scenarios
 1. **Event propagation** – Laptop/Admin creates an event as *Draft* → not visible to participants. Click **Publish** → it appears on Phone 1 without refresh.

@@ -48,11 +48,8 @@ eventsync/
 ## Access modes
 | Mode | URL | Camera/QR scanning |
 |---|---|---|
-| Same laptop | `http://localhost:8080` | works (localhost is a secure context) |
-| LAN (phones on same Wi-Fi) | `http://<laptop-ip>:8080` (`ipconfig` → IPv4; `serve` also prints it) | browsing/registration works; **camera is blocked on http** |
-| Public HTTPS | Vercel/Netlify URL, or `npm run tunnel` | works everywhere |
-
-> Allow Node.js through Windows Firewall (private network) for LAN access. Mobile browsers only expose the camera on HTTPS, so for the scanner phone use a deployed URL or a tunnel (`npm run tunnel` gives an `https://*.loca.lt` URL; ngrok or `cloudflared tunnel --url http://localhost:8080` also work).
+| Local testing (laptop) | `http://localhost:8080` | works (localhost is a secure context) |
+| Production / Deployed (HTTPS) | Your Vercel/Netlify URL | works everywhere (phones & laptops) |
 
 ## Deployment
 **Vercel:** push to GitHub → import in Vercel → add env vars `SUPABASE_URL` and `SUPABASE_ANON_KEY` → deploy (`vercel.json` runs `node tools/generate-config.js`).  
