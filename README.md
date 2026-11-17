@@ -109,6 +109,16 @@ Migration `supabase/migrations/007_event_images.sql` adds two nullable columns t
 - **Atomic concurrency & offline sync:** Time-out uses `UPDATE ... WHERE check_out_time IS NULL AND NOT voided` so two concurrent scanners cannot both set time-out. Offline sync processes queued items in `scanned_at` order and is idempotent by `scan_id`.
 - **Defense Q&A — Why use the same QR code for Time In and Time Out?** The QR pass identifies the registration (`qr_token`), while the scanner's selected mode (`IN` | `OUT`) and the stored database state (`checked_in_at` / `check_out_time`) determine whether to record a time-in, record a time-out, or reject (`NO TIME-IN RECORDED`, `ALREADY CHECKED IN`, `ALREADY CHECKED OUT`).
 
+## Post-Event Feedback (Google Form)
+- **Database (`supabase/migrations/015_event_feedback.sql`):** Adds `feedback_url` (nullable `text`, protected from direct participant `SELECT`), `feedback_audience` (`'attended'` default or `'registered'`), and `feedback_opened_early` (`boolean`, default `false`) to `public.events`.
+- **User Manual:**
+  1. Create a Google Form beforehand (set sharing to *"Anyone with the link"* and include a question for school ID or name).
+  2. In **Events** (`/admin/events`), paste the Google Form `https://` link under **Feedback form link**, choose **Who can answer** (*People who attended* or *Everyone who registered*), and use **Test link** to verify it.
+  3. After the event's end time passes (or if you click **Open feedback now**), eligible participants see a **Give feedback** button under **My Registrations** and a dismissible portal banner.
+- **Defense Q&A:**
+  - *Why does the server hide the feedback link until the event ends?* `events.feedback_url` is revoked from direct participant `SELECT` and returned only by `my_registrations()` once the server clock is past `ends_at` (or `feedback_opened_early = true`) and the participant meets the audience rule. This prevents participants from inspecting network responses to answer feedback before attending.
+  - *Why are only Google Form links accepted?* Both `config/feedback.js` and `validate_event_feedback_url()` restrict URLs to `https://` on `docs.google.com/forms/...`, `forms.gle`, and `forms.google.com`, blocking `javascript:`, `data:`, `http:`, and look-alike phishing hosts.
+
 ## Registration Window vs. Attendance Window & Test Mode
 - **Two separate windows (`config/schedule.js` + `supabase/migrations/010_attendance_windows.sql`):**
   1. **Registration window:** `events.registration_opens_at` to `events.registration_deadline` (enforced server-side in `_register_core()` for both participant and admin registration).
