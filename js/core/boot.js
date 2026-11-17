@@ -10,7 +10,6 @@ const NAV = {
     ['scan', '/admin/scan', 'Scan QR'],
     ['monitor', '/admin/monitor', 'Live Monitor'],
     ['reports', '/admin/reports', 'Reports'],
-    ['logs', '/admin/logs', 'Activity Logs'],
     ['users', '/admin/users', 'Users']
   ],
   user: [

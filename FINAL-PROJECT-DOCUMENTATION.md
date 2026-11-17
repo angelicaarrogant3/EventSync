@@ -342,7 +342,6 @@ eventsync/
 │   ├── scan.html               # Door QR Scanner Station (camera + manual entry)
 │   ├── monitor.html            # Organizer Live Monitor & arrival feed
 │   ├── reports.html            # Per-event Attendance Sheet & Summary Excel/PDF exports
-│   ├── logs.html               # Immutable Activity Logs viewer
 │   └── users.html              # Admin Users directory, filters, detail modal, Excel export
 ├── user/
 │   ├── events.html             # Participant Browse Events (16:9 banners, Details modal, Register)
@@ -409,7 +408,7 @@ eventsync/
    - Filter by event or search by name, School ID, email, or program; cancel/reinstate registrations or use **+ Register participant** for assisted on-site signups.
 3. **Verify Attendance at the Door (`/admin/scan`):**
    - Select the active event, allow camera access (requires HTTPS or `localhost`), and point at participant QR passes—or enter the QR token manually. Results show **Checked in** (green), **Already checked in** (amber), or **Invalid QR** (red).
-4. **Monitor & Export Reports (`/admin/monitor`, `/admin/reports`, `/admin/users`, `/admin/logs`):**
+4. **Monitor & Export Reports (`/admin/monitor`, `/admin/reports`, `/admin/users`):**
    - Watch live arrival counts and feeds on **Live Monitor**.
    - On **Reports**, select an event and click **Export Excel (.xlsx)** or **Save / Print PDF** for an A4 attendance sheet with **Attendance by School / Office** breakdown and signature lines.
    - On **Users**, filter by School, Program, or Status, inspect participant registration history, deactivate/reactivate accounts, or reset passwords.
@@ -478,3 +477,5 @@ npm test
   Images are compressed on the client via `<canvas>` (max 1600 px, 16:9 WebP/JPEG, EXIF stripped) and stored in the Supabase Storage `event-images` bucket, while PostgreSQL stores only the relative key (`image_path`) and timestamp (`image_updated_at`). This avoids database bloat and allows long-lived CDN caching.
 - **What happens if one laptop loses Wi-Fi during the event?**  
   The 8-second health ping and browser `offline` listener switch the status chip to `Offline` and show a banner. The remaining laptops keep working normally; once the disconnected laptop reconnects, `watch()` triggers a full state refetch so it catches up immediately.
+- **How do you track who did what?**  
+  Actions are written to an `activity_logs` table in the background; it is not shown in the interface to keep it simple.

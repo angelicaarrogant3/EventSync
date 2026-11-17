@@ -16,7 +16,7 @@ Use your deployed HTTPS URL (or `http://localhost:8080` for local testing).
 
 ## Test scenarios
 1. **Event propagation** – Laptop/Admin creates an event as *Draft* → not visible to participants. Click **Publish** → it appears on Phone 1 without refresh.
-2. **Registration** – Phone 1 registers. Expect: toast, event shows "You are registered", Admin *Registrations* and *Monitor* "Registered" counter increase within ~1 s, a `registration.created` row appears in *Activity Logs*.
+2. **Registration** – Phone 1 registers. Expect: toast, event shows "You are registered", Admin *Registrations* and *Monitor* "Registered" counter increase within ~1 s, and a `registration.created` row is recorded in `activity_logs` in the background.
 3. **QR code** – Phone 1 → *My Registrations* shows a QR. Each registration has a different QR.
 4. **Attendance verification** – Phone 2 scans Phone 1's QR → green "Checked in". Phone 3 feed and counters update live; Phone 1's card flips to "Checked in"; profile history shows the event.
 5. **Duplicate attendance** – scan the same QR again → amber "Already checked in"; attendance count unchanged.
@@ -31,4 +31,4 @@ Use your deployed HTTPS URL (or `http://localhost:8080` for local testing).
 14. **Cross-network** – put Phone 1 on mobile data and the laptop on Wi-Fi using the HTTPS URL; repeat tests 2–4.
 
 ## Pass criteria
-All devices show the same counts within ~1–2 s; no duplicates in `registrations`/`attendance`; every transaction appears in *Activity Logs*; app recovers from network loss without manual reload.
+All devices show the same counts within ~1–2 s; no duplicates in `registrations`/`attendance`; every transaction is logged in `activity_logs` in the background; app recovers from network loss without manual reload.

@@ -6,7 +6,7 @@ Vanilla HTML/CSS/ES6 frontend · Supabase (PostgreSQL, Auth, Realtime, RPC) · `
 EventSync is its own project with its own database. It does **not** use or touch any MathALINO resources.
 
 ## Features
-- **Admin:** event CRUD + publish/unpublish, registrations management, QR attendance scanner, live monitor, reports (print/CSV), activity & transaction logs.
+- **Admin:** event CRUD + publish/unpublish, registrations management, QR attendance scanner, live monitor, reports (Excel/PDF), user management.
 - **Participant:** sign up/log in, browse events, register, unique QR per registration, registration status, attendance history, profile.
 - **Distributed:** any number of devices share one Supabase database; changes propagate through Supabase Realtime.
 - **Safety:** RLS on every table, all writes to registrations/attendance via `SECURITY DEFINER` RPCs, `UNIQUE(event_id,user_id)` and `UNIQUE(registration_id)` stop duplicate registration/attendance, capacity checks under row lock, role-escalation trigger.
@@ -96,6 +96,7 @@ Migration `supabase/migrations/007_event_images.sql` adds two nullable columns t
 - **Why not store images as blobs inside PostgreSQL?** Storing binary blobs in database rows bloats backups, slows down table scans/queries, and increases memory/egress overhead. Object storage serves cached images directly while keeping `events` fast.
 - **How are uploads secured?** Only authenticated administrators can write or delete in `event-images` (enforced by Supabase Storage RLS + `public.is_admin()`). Files are checked by magic bytes (JPEG, PNG, WebP only — no SVG/GIF), capped at 5 MB, re-encoded on canvas (stripping EXIF metadata), and given server-safe random filenames.
 - **What happens if an image is missing or the server is unreachable?** An `onerror` handler removes the failed `<img>` and reveals the built-in dark/crimson placeholder with the EventSync logo and event initials, with zero layout shift.
+- **How do you track who did what?** Actions are written to an `activity_logs` table in the background; it is not shown in the interface to keep it simple. (Administrators can clear old logs via `npm run clear-activity-logs`.)
 
 ## Registration Window vs. Attendance Window & Test Mode
 - **Two separate windows (`config/schedule.js` + `supabase/migrations/010_attendance_windows.sql`):**

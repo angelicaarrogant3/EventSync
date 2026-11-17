@@ -67,7 +67,7 @@ test('register when full: rejected, count not exceeded', { skip }, async () => {
 
 test('registration deadline passed: rejected', { skip }, async () => {
   const ev = await mkEvent({ deadline: new Date(Date.now() - 60e3) });
-  await fails(users[0], 'select public.register_for_event($1)', [ev], /deadline/i);
+  await fails(users[0], 'select public.register_for_event($1)', [ev], /Registration is closed|deadline/i);
   assert.equal(await count(ev), 0);
 });
 
