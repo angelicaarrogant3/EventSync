@@ -421,8 +421,6 @@ dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}
 .sheet-totals{display:flex;flex-wrap:wrap;gap:1.25rem;padding:.5rem 0;font-size:.92rem;break-inside:avoid}
 .sheet-sign{display:flex;justify-content:space-between;flex-wrap:wrap;gap:1.5rem;margin-top:2.25rem;font-size:.9rem;break-inside:avoid}
 .sheet-closing{break-inside:avoid;page-break-inside:avoid}
-.sheet-top{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:1rem;min-height:32px}
-.sheet-logo{display:none}
 
 /* ---- Event Images, Placeholders & Uploader ---- */
 .evt-media{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:14px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:.9rem}
@@ -481,7 +479,6 @@ dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}
   *{box-shadow:none!important;text-shadow:none!important}
   .container{max-width:none!important;padding:14mm!important;margin:0!important}
   .card,.card.sheet-wrap{background:#fff!important;border:0!important;box-shadow:none!important;padding:0!important}
-  .sheet-logo{display:block;position:absolute;left:0;top:50%;transform:translateY(-50%);width:38px;height:auto}
   .sheet,.sheet-title,.sheet-head th,.sheet-head td,.sheet-table th,.sheet-table td,.sheet-totals,.sheet-sign{color:#111!important}
   .sheet-table thead{display:table-header-group}
   .sheet-table tr,.sheet-closing{break-inside:avoid;page-break-inside:avoid}

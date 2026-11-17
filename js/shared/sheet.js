@@ -185,7 +185,7 @@ export function summaryWorkbook(ExcelJS, m) {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export function renderPrintHtml(m) {
   return `<div class="sheet">
-    <div class="sheet-top"><img class="sheet-logo" src="/assets/logo.png" alt="ES logo" width="38" height="25"><h1 class="sheet-title">${esc(m.title)}</h1></div>
+    <h1 class="sheet-title">${esc(m.title)}</h1>
     <table class="sheet-head">${m.header.map(([k, v]) => `<tr><th>${esc(k)}:</th><td>${esc(v)}</td></tr>`).join('')}</table>
     <table class="sheet-table"><thead><tr>${m.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
       <tbody>${m.rows.map(r => `<tr>${r.map((v, i) => `<td class="${[0, 5, 6, 7].includes(i) ? 'c' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${m.columns.length}" class="c">No attendees</td></tr>`}</tbody></table>

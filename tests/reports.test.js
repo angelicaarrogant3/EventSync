@@ -171,4 +171,5 @@ test('print stylesheet hides nav/chrome and printable sheet header contains even
   assert.ok(html.includes('EVENT ATTENDANCE SHEET'));
   assert.ok(html.includes('Laag, Annual Meetup'));
   assert.equal(html.includes('EventSync'), false);
+  assert.equal(html.includes('<img'), false);
 });
