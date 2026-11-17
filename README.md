@@ -60,7 +60,7 @@ Afterwards, in Supabase **Authentication → URL Configuration**, set the Site U
 Tables `events`, `registrations`, `attendance`, `activity_logs` are added to the `supabase_realtime` publication by the schema. Realtime respects RLS, so participants only receive their own rows; admins receive everything.
 
 ## Testing
-See [TESTING.md](TESTING.md) for the multi-device distributed test plan.
+See [TESTING.md](TESTING.md) for the multi-device distributed test plan, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the distributed system architecture overview.
 
 ## Participant sign-up fields & BiPSU Main Campus Programs
 The sign-up, profile, and admin 'Register a participant' forms share one component (`js/shared/participant-form.js`) and one searchable School -> Program -> Major selector (`js/shared/program-selector.js`).

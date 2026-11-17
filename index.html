@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
-<title>EventSync — Distributed Event Registration &amp; Attendance</title>
+<title>EventSync — School Event Registration &amp; QR Check-In</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/icon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/icon-180.png">
@@ -16,122 +16,128 @@
       <img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="44" height="29">
       <span class="brand-text">EventSync</span>
     </a>
-    <nav class="nav-links" aria-label="Landing navigation">
-      <a href="#features">Features</a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a href="#upcoming">Events</a>
       <a href="#how">How it works</a>
-      <a href="#devices">Architecture</a>
+      <a href="#help">Help</a>
     </nav>
-    <div class="topbar-right" id="navAuth">
+    <div class="topbar-right">
+      <div class="row land-auth-desktop" id="navAuth">
+        <a class="btn ghost sm" href="/login">Log in</a>
+        <a class="btn sm" href="/signup">Sign up</a>
+      </div>
+      <button class="land-burger" id="landBurger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="landDrawer"></button>
+    </div>
+  </div>
+  <nav class="nav-drawer" id="landDrawer" aria-label="Mobile navigation" hidden>
+    <a href="#upcoming">Events</a>
+    <a href="#how">How it works</a>
+    <a href="#help">Help</a>
+    <div class="row" id="drawerAuth" style="padding:.4rem .25rem">
       <a class="btn ghost sm" href="/login">Log in</a>
       <a class="btn sm" href="/signup">Sign up</a>
     </div>
-  </div>
+  </nav>
 </header>
 
 <main>
-  <section class="land-hero fade-in">
-    <span class="pill-announce"><span class="dot"></span> Live attendance, synced across devices</span>
-    <h1>Event Registration and Attendance, <span class="accent">Synced in Real Time</span></h1>
-    <p>Run school events from any laptop or phone. Participants register online for a unique QR pass, staff verify at the door, and organizers watch live turnout update instantly.</p>
+  <section class="land-hero">
+    <span class="pill-announce"><span class="dot"></span> School events made easy</span>
+    <h1>Register for school events and <span class="accent">check in with a QR code</span></h1>
+    <p>Sign up, pick an event, and get your personal QR pass. Show it at the door and you are checked in.</p>
     <div class="row" style="justify-content:center" id="heroCta">
-      <a class="btn" href="/signup" id="ctaPrimary">Get Started <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
-      <a class="btn ghost" href="/login" id="ctaSecondary">Log in</a>
-    </div>
-
-    <div class="stats" style="margin-top:2.75rem;text-align:left">
-      <div class="card stat hoverable">
-        <div class="stat-top"><span>Published Events</span><span class="stat-icon" id="iEv"></span></div>
-        <b id="stEvents">—</b>
-        <span class="faint sm">Active &amp; upcoming</span>
-      </div>
-      <div class="card stat hoverable">
-        <div class="stat-top"><span>Registered Participants</span><span class="stat-icon" id="iReg"></span></div>
-        <b id="stReg">—</b>
-        <span class="faint sm">Verified QR passes issued</span>
-      </div>
-      <div class="card stat hoverable">
-        <div class="stat-top"><span>Check-ins Today</span><span class="stat-icon" id="iChk"></span></div>
-        <b id="stChk">—</b>
-        <span class="faint sm">Synced in real time</span>
-      </div>
-      <div class="card stat hoverable">
-        <div class="stat-top"><span>Check-in Velocity</span><span class="stat-icon" id="iVel"></span></div>
-        <b id="stRate">—</b>
-        <div class="bar" style="margin-top:.35rem"><i id="stBar" style="width:0%"></i></div>
-      </div>
+      <a class="btn" href="/signup">Get started <span id="iArrow"></span></a>
+      <a class="btn ghost" href="/login">Log in</a>
     </div>
   </section>
 
   <section class="land-sec" id="upcoming">
     <div class="land-sec-head">
-      <span class="eyebrow">Open for Registration</span>
       <h2>Upcoming <span class="accent">events</span></h2>
-      <p class="muted">Browse published school events and reserve your QR pass.</p>
+      <p class="muted">Pick an open event and save your seat.</p>
     </div>
     <div class="grid" id="upcomingGrid">
       <div class="card empty" style="grid-column:1/-1">Loading upcoming events...</div>
     </div>
   </section>
 
-  <section class="land-sec" id="features">
-    <div class="land-sec-head">
-      <span class="eyebrow">Powerful. Flexible. Intuitive.</span>
-      <h2>Everything you need to run <span class="accent">school events</span></h2>
-      <p class="muted">Built for fast check-ins, accurate attendance sheets, and zero duplicate entries.</p>
-    </div>
-    <div class="grid">
-      <div class="card hero-red hoverable">
-        <h3>QR Attendance Verification</h3>
-        <p class="muted sm">Scan participant passes with any HTTPS phone camera or manual token entry. Atomic server checks prevent duplicate check-ins.</p>
-      </div>
-      <div class="card hoverable">
-        <h3>Event Management</h3>
-        <p class="muted sm">Create, edit, publish, and close events with venue, schedule, capacity limits, and registration deadlines.</p>
-      </div>
-      <div class="card hoverable">
-        <h3>Online Registration</h3>
-        <p class="muted sm">Participants register from their phones with school ID, course, and year level, with instant seat-count updates.</p>
-      </div>
-      <div class="card hoverable">
-        <h3>Unique QR Codes</h3>
-        <p class="muted sm">Every registration receives a tamper-proof UUID QR pass downloadable as a high-contrast PNG ticket.</p>
-      </div>
-      <div class="card hoverable">
-        <h3>Live Monitoring</h3>
-        <p class="muted sm">Watch registered counts, checked-in totals, and a live arrival feed converge across every connected device.</p>
-      </div>
-      <div class="card hoverable">
-        <h3>Automated Reports</h3>
-        <p class="muted sm">Export formatted A4 Excel (.xlsx) attendance sheets and print-ready PDFs with totals and signature lines.</p>
-      </div>
-    </div>
-  </section>
-
   <section class="land-sec" id="how">
     <div class="land-sec-head">
-      <span class="eyebrow">End-to-End Flow</span>
-      <h2>How <span class="accent">EventSync</span> works</h2>
+      <h2>What you can <span class="accent">do</span></h2>
+      <p class="muted">Everything is simple from sign-up to check-in.</p>
+    </div>
+    <div class="grid" style="margin-bottom:2.25rem">
+      <div class="card hero-red">
+        <span class="stat-icon" id="iDo1"></span>
+        <h3 style="margin-top:.75rem">Sign up and register</h3>
+        <p class="muted">Create an account and reserve your seat for an event.</p>
+      </div>
+      <div class="card">
+        <span class="stat-icon" id="iDo2"></span>
+        <h3 style="margin-top:.75rem">Get your QR pass</h3>
+        <p class="muted">Your personal QR code is ready right after you register.</p>
+      </div>
+      <div class="card">
+        <span class="stat-icon" id="iDo3"></span>
+        <h3 style="margin-top:.75rem">Check in fast</h3>
+        <p class="muted">Show your QR at the door. The staff scans it and you are in.</p>
+      </div>
+    </div>
+    <p class="muted" style="margin:0 0 2.25rem">Organizers can create events, see who arrived, and download the attendance sheet.</p>
+
+    <div class="land-sec-head">
+      <h2>How it <span class="accent">works</span></h2>
     </div>
     <div class="steps">
-      <div class="card"><span class="step-num">1</span><h3>Register</h3><p class="muted sm">Participants create an account and reserve a seat on any published event.</p></div>
-      <div class="card"><span class="step-num">2</span><h3>Get your QR</h3><p class="muted sm">A unique QR pass is generated immediately and saved under My Registrations.</p></div>
-      <div class="card"><span class="step-num">3</span><h3>Scan at the door</h3><p class="muted sm">Authorized admins scan passes at the entrance with instant valid/duplicate feedback.</p></div>
-      <div class="card"><span class="step-num">4</span><h3>Monitor live</h3><p class="muted sm">Attendance rates and check-in feeds update across every admin screen in real time.</p></div>
-      <div class="card"><span class="step-num">5</span><h3>Export reports</h3><p class="muted sm">Download formatted Excel attendance sheets or print-ready A4 PDFs.</p></div>
+      <div class="card"><span class="step-num">1</span><h3>Create an account</h3><p class="muted">Sign up with your school details.</p></div>
+      <div class="card"><span class="step-num">2</span><h3>Register for an event</h3><p class="muted">Pick an event and save your seat.</p></div>
+      <div class="card"><span class="step-num">3</span><h3>Show your QR at the door</h3><p class="muted">Open your pass on your phone or picture.</p></div>
+      <div class="card"><span class="step-num">4</span><h3>You are marked present</h3><p class="muted">Staff scans your code and you are in.</p></div>
     </div>
   </section>
 
-  <section class="land-sec" id="devices">
+  <section class="land-sec" id="before">
     <div class="land-sec-head">
-      <span class="eyebrow">Distributed Architecture</span>
-      <h2>Built on <span class="accent">connected devices</span></h2>
-      <p class="muted">Run on a single laptop + phones, or across multiple laptops on different networks — synchronized through one cloud database.</p>
+      <h2>Before you <span class="accent">start</span></h2>
     </div>
-    <div class="stats">
-      <div class="card hoverable"><span class="stat-icon" id="dSrv"></span><h3 style="margin-top:.75rem">Cloud Database</h3><p class="muted sm">PostgreSQL with Row-Level Security, atomic RPCs, and Realtime Pub/Sub.</p></div>
-      <div class="card hoverable"><span class="stat-icon" id="dReg"></span><h3 style="margin-top:.75rem">Registration Node</h3><p class="muted sm">Participants browse events and receive QR passes from any mobile browser.</p></div>
-      <div class="card hoverable"><span class="stat-icon" id="dScn"></span><h3 style="margin-top:.75rem">Scanner Station</h3><p class="muted sm">Door staff verify QR passes over HTTPS with instant sound and vibration feedback.</p></div>
-      <div class="card hoverable"><span class="stat-icon" id="dOrg"></span><h3 style="margin-top:.75rem">Organizer Hub</h3><p class="muted sm">Admins monitor live turnout, manage users, and export official reports.</p></div>
+    <div class="before-grid">
+      <div class="card before-card">
+        <span class="stat-icon" id="iBef1"></span>
+        <div><h3 style="margin-top:0">You need an account</h3><p class="muted" style="margin-bottom:0">Sign up with your school details.</p></div>
+      </div>
+      <div class="card before-card">
+        <span class="stat-icon" id="iBef2"></span>
+        <div><h3 style="margin-top:0">Use your phone or laptop</h3><p class="muted" style="margin-bottom:0">Open EventSync in any web browser. Nothing to install.</p></div>
+      </div>
+      <div class="card before-card">
+        <span class="stat-icon" id="iBef3"></span>
+        <div><h3 style="margin-top:0">Keep your QR ready</h3><p class="muted" style="margin-bottom:0">Find it under My Registrations. You can also save it as a picture.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="land-sec" id="help">
+    <div class="land-sec-head">
+      <h2><span class="accent">Help</span></h2>
+      <p class="muted">Common questions from students and guests.</p>
+    </div>
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>Do I need to install an app?</summary>
+        <p>No. EventSync works in your web browser.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Where is my QR code?</summary>
+        <p>Log in, open My Registrations, and tap View QR.</p>
+      </details>
+      <details class="faq-item">
+        <summary>I lost my QR code. What now?</summary>
+        <p>Log in again. Your QR is always saved under My Registrations.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What if my phone has no signal at the event?</summary>
+        <p>Save your QR as a picture before you go, or ask the staff to look you up by your school ID.</p>
+      </details>
     </div>
   </section>
 </main>
@@ -142,10 +148,10 @@
       <img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="38" height="25">
       <span>EventSync</span>
     </a>
-    <span class="sm">Distributed Event Registration &amp; Attendance Management System</span>
-    <div class="row">
-      <a class="sm" href="/login">Log in</a>
-      <a class="sm" href="/signup">Sign up</a>
+    <span>EventSync - Event registration and attendance for school events</span>
+    <div class="row" id="footerAuth">
+      <a href="/login">Log in</a>
+      <a href="/signup">Sign up</a>
     </div>
   </div>
 </footer>
@@ -157,49 +163,61 @@
   import { ICONS } from '/js/shared/icons.js';
   import { eventBannerHtml } from '/js/shared/event-images.js';
 
-  document.getElementById('iEv').innerHTML = ICONS.calendar(18);
-  document.getElementById('iReg').innerHTML = ICONS.users(18);
-  document.getElementById('iChk').innerHTML = ICONS.check(18);
-  document.getElementById('iVel').innerHTML = ICONS.activity(18);
-  document.getElementById('dSrv').innerHTML = ICONS.server(18);
-  document.getElementById('dReg').innerHTML = ICONS.qr(18);
-  document.getElementById('dScn').innerHTML = ICONS.shield(18);
-  document.getElementById('dOrg').innerHTML = ICONS.chart(18);
+  document.getElementById('iArrow').innerHTML = ICONS.arrowRight(18);
+  document.getElementById('iDo1').innerHTML = ICONS.user(18);
+  document.getElementById('iDo2').innerHTML = ICONS.qr(18);
+  document.getElementById('iDo3').innerHTML = ICONS.check(18);
+  document.getElementById('iBef1').innerHTML = ICONS.user(18);
+  document.getElementById('iBef2').innerHTML = ICONS.calendar(18);
+  document.getElementById('iBef3').innerHTML = ICONS.download(18);
+
+  const burger = document.getElementById('landBurger');
+  const drawer = document.getElementById('landDrawer');
+  burger.innerHTML = ICONS.menu(20);
+  burger.onclick = () => {
+    const open = drawer.hidden;
+    drawer.hidden = !open;
+    burger.setAttribute('aria-expanded', String(open));
+    burger.innerHTML = open ? ICONS.close(20) : ICONS.menu(20);
+  };
+  drawer.addEventListener('click', ev => {
+    if (ev.target.closest('a')) {
+      drawer.hidden = true;
+      burger.setAttribute('aria-expanded', 'false');
+      burger.innerHTML = ICONS.menu(20);
+    }
+  });
 
   if (!configMissing) {
     const p = await getProfile().catch(() => null);
-    if (p) { location.replace(homeFor(p.role)); }
+    if (p) {
+      const dest = homeFor(p.role);
+      const dashBtn = `<a class="btn sm" href="${dest}">Go to my dashboard</a>`;
+      document.getElementById('navAuth').innerHTML = dashBtn;
+      document.getElementById('drawerAuth').innerHTML = dashBtn;
+      document.getElementById('heroCta').innerHTML = `<a class="btn" href="${dest}">Go to my dashboard ${ICONS.arrowRight(18)}</a>`;
+    }
     try {
-      const { data } = await supabase.rpc('public_landing_stats');
-      if (data) {
-        document.getElementById('stEvents').textContent = data.events_count ?? 0;
-        document.getElementById('stReg').textContent = data.registered_count ?? 0;
-        document.getElementById('stChk').textContent = data.checkins_today ?? 0;
-        const pct = data.registered_count ? Math.min(100, Math.round((data.checkins_today / data.registered_count) * 100)) : 0;
-        document.getElementById('stRate').textContent = pct + '%';
-        document.getElementById('stBar').style.width = pct + '%';
-      }
-    } catch { /* show friendly placeholders */ }
-    try {
-      const { data: up } = await supabase.rpc('public_upcoming_events', { p_limit: 6 });
+      const { data: up, error } = await supabase.rpc('public_upcoming_events', { p_limit: 6 });
+      if (error) throw error;
       const ug = document.getElementById('upcomingGrid');
       if (!up || !up.length) {
-        ug.innerHTML = '<div class="card empty" style="grid-column:1/-1">No upcoming events right now.</div>';
+        ug.innerHTML = '<div class="card empty" style="grid-column:1/-1">No upcoming events yet. Please check back soon.</div>';
       } else {
         ug.innerHTML = up.map(e => {
           const left = e.capacity ? Math.max(e.capacity - e.registered_count, 0) : null;
           const full = e.capacity && e.registered_count >= e.capacity;
-          return `<div class="card hoverable fade-in">
+          return `<div class="card">
             ${eventBannerHtml(e, { variant: 'card' })}
             <div class="stat-top" style="margin-bottom:.4rem"><h3 style="margin:0">${esc(e.title)}</h3><span class="badge ${full ? 'closed' : 'published'}">${full ? 'Full' : 'Open'}</span></div>
-            <p class="muted sm">${ICONS.clock(14)} ${fmt(e.starts_at)}<br>${ICONS.pin(14)} ${esc(e.venue)}</p>
-            <p class="sm" style="margin:.5rem 0 .8rem"><b>${e.registered_count}</b> registered${e.capacity ? ` / ${e.capacity} seats · <b>${left}</b> left` : ''}</p>
-            <a class="btn sm ${full ? 'ghost' : ''}" href="/signup">Register ${ICONS.arrowRight(14)}</a>
+            <p class="muted">${ICONS.clock(14)} ${fmt(e.starts_at)}<br>${ICONS.pin(14)} ${esc(e.venue)}</p>
+            <p style="margin:.5rem 0 .9rem">${e.capacity ? `<b>${left}</b> seats left` : 'Open registration'}</p>
+            <a class="btn ${full ? 'ghost' : ''}" href="/signup">Register ${ICONS.arrowRight(16)}</a>
           </div>`;
         }).join('');
       }
     } catch {
-      document.getElementById('upcomingGrid').innerHTML = '<div class="card empty" style="grid-column:1/-1">Upcoming events unavailable offline.</div>';
+      document.getElementById('upcomingGrid').innerHTML = '<div class="card empty" style="grid-column:1/-1">We could not load the events. Please refresh the page.</div>';
     }
   }
 </script>
