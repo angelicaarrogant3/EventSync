@@ -32,3 +32,10 @@ Use your deployed HTTPS URL (or `http://localhost:8080` for local testing).
 
 ## Pass criteria
 All devices show the same counts within ~1–2 s; no duplicates in `registrations`/`attendance`; every transaction is logged in `activity_logs` in the background; app recovers from network loss without manual reload.
+
+## Phone Scanner Manual Checklist
+1. Open `/admin/scan` on an HTTPS phone browser, tap **Start camera** (unlocks audio), and grant camera permission.
+2. **Valid pass:** Scan a registered participant's QR for an open event → full-screen green **CHECKED IN** modal shows name, school ID, program, time, plays high double-beep, auto-closes in 2s, and appears in **Recent scans**.
+3. **Duplicate scan:** Scan the same pass again → amber **ALREADY CHECKED IN** modal shows earlier time and station, auto-closes in 3s.
+4. **Future event:** Select or scan a pass for a future event → amber **NOT OPEN YET** modal shows `"Attendance opens ..."`, `"No attendance was recorded."`, auto-closes in 3s.
+5. **Wrong code:** Enter `"not-a-qr"` in manual entry and tap **Verify** → red **INVALID QR** modal stays open until you tap **Scan next** (or tap backdrop).

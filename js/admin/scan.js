@@ -3,6 +3,7 @@ import { boot } from '/js/core/boot.js';
 import { $, esc, fmtTime, toast, errMsg, watch } from '/js/core/ui.js';
 import { ICONS } from '/js/shared/icons.js';
 import { getAttendanceState, formatManila } from '/config/schedule.js';
+import { createScanModal, SCAN_MODAL_CONFIG } from '/js/admin/scan-modal.js';
 
 await boot('admin', 'scan');
 
@@ -12,6 +13,49 @@ const QUEUE_KEY = 'eventsync_scan_queue';
 
 let scanner = null, busy = false, last = { t: '', at: 0 };
 let events = [];
+let audioCtx = null;
+
+function unlockAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!audioCtx) audioCtx = new Ctx();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+  } catch { return null; }
+}
+
+function playTone(tone) {
+  try {
+    const ctx = unlockAudio();
+    if (!ctx) return;
+    const beep = (freq, start, dur, type = 'sine') => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.14, ctx.currentTime + start);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + start);
+      o.stop(ctx.currentTime + start + dur);
+    };
+    if (tone === 'green') { beep(880, 0, 0.09); beep(1174, 0.1, 0.13); }
+    else if (tone === 'amber' || tone === 'blue') { beep(440, 0, 0.14, 'triangle'); beep(330, 0.16, 0.18, 'triangle'); }
+    else { beep(220, 0, 0.22, 'sawtooth'); beep(175, 0.24, 0.26, 'sawtooth'); }
+  } catch {}
+}
+
+function triggerVibrate(tone) {
+  if (!navigator.vibrate) return;
+  if (tone === 'green') navigator.vibrate(120);
+  else if (tone === 'amber' || tone === 'blue') navigator.vibrate([80, 50, 80]);
+  else navigator.vibrate([120, 60, 120, 60, 120]);
+}
+
+const scanModal = createScanModal({
+  onTone: playTone,
+  onVibrate: triggerVibrate
+});
 
 function loadCachedEvents() {
   try { return JSON.parse(localStorage.getItem(EV_CACHE_KEY) || '[]'); } catch { return []; }
@@ -25,27 +69,6 @@ function readQueue() {
 function writeQueue(q) {
   try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
   renderQueue();
-}
-
-function playTone(kind) {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const beep = (freq, start, dur) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = kind === 'ok' ? 'sine' : 'triangle';
-      o.frequency.value = freq;
-      g.gain.setValueAtTime(0.12, ctx.currentTime + start);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(ctx.currentTime + start);
-      o.stop(ctx.currentTime + start + dur);
-    };
-    if (kind === 'ok') { beep(880, 0, 0.09); beep(1174, 0.1, 0.12); }
-    else if (kind === 'not_started' || kind === 'ended') { beep(320, 0, 0.18); beep(240, 0.2, 0.24); }
-    else { beep(220, 0, 0.22); }
-  } catch {}
 }
 
 function eventStateLabel(e) {
@@ -136,13 +159,12 @@ async function syncQueue() {
     });
     if (error) throw error;
     const results = Array.isArray(data) ? data : [];
-    const nextQueue = q.filter(x => x.status === 'rejected'); // keep previously rejected items visible
+    const nextQueue = q.filter(x => x.status === 'rejected');
     results.forEach((res, i) => {
       const orig = pending[i];
       if (res.status === 'ok' || res.status === 'duplicate') {
-        show(res, true);
+        appendRecent(res, true);
       } else {
-        // Rejected items stay visible in the scanner's queue screen with the reason
         nextQueue.push({ ...orig, status: 'rejected', reason: res.message || res.code || 'Rejected' });
       }
     });
@@ -157,31 +179,46 @@ async function syncQueue() {
   }
 }
 
+function appendRecent(r, fromSync = false) {
+  const mapped = scanModal.open && !fromSync ? scanModal.open(r) : null;
+  const badgeClass = r.status === 'ok' ? 'ok' : (r.status === 'duplicate' || r.status === 'queued' || r.status === 'not_started') ? 'dup' : 'cancelled';
+  const label = mapped?.title || r.status;
+  const li = document.createElement('li'); li.className = 'new';
+  li.innerHTML = `<span><b>${esc(r.participant || 'Unknown')}</b>${r.is_test ? ' <span class="badge dup">TEST</span>' : ''}${fromSync ? ' <small class="muted">(synced)</small>' : ''}<br><small class="muted">${esc(r.event || r.message || '')}</small></span><span class="badge ${badgeClass}">${esc(label)}</span><small class="muted">${fmtTime(new Date())}</small>`;
+  $('#recent').prepend(li);
+}
+
 async function verify(raw, mode = 'scan') {
+  // Pause camera decoding while modal is open (manual verify still replaces open modal)
+  if (mode === 'scan' && scanModal.isOpen()) return;
+
   const m = String(raw).match(UUID);
-  if (!m) return show({ status: 'invalid', message: 'Not an EventSync QR code' });
+  if (!m) {
+    const res = { status: 'invalid', code: 'INVALID_QR', message: 'This code is not an EventSync pass.' };
+    appendRecent(res);
+    return;
+  }
   const token = m[0].toLowerCase();
-  if (busy || (token === last.t && Date.now() - last.at < 4000)) return;
+  if (busy || (mode === 'scan' && token === last.t && Date.now() - last.at < SCAN_MODAL_CONFIG.debounceMs)) return;
   busy = true; last = { t: token, at: Date.now() };
   const selectedEventId = $('#ev').value || null;
   const selectedEvent = events.find(x => x.id === selectedEventId) || null;
 
   try {
-    // Offline fallback with cached event schedule check
     if (!navigator.onLine) {
       if (selectedEvent && !selectedEvent.allow_early_test_attendance) {
         const ws = getAttendanceState(selectedEvent);
         if (ws.state === 'NOT_STARTED') {
-          return show({ status: 'not_started', code: 'EVENT_NOT_STARTED', event: selectedEvent.title, message: `Attendance opens on ${formatManila(ws.opensAt)}.` });
+          return appendRecent({ status: 'not_started', code: 'EVENT_NOT_STARTED', event: selectedEvent.title, opensAt: ws.opensAt, message: `Attendance opens on ${formatManila(ws.opensAt)}.` });
         }
         if (ws.state === 'ENDED') {
-          return show({ status: 'ended', code: 'EVENT_ENDED', event: selectedEvent.title, message: 'Attendance for this event is closed.' });
+          return appendRecent({ status: 'ended', code: 'EVENT_ENDED', event: selectedEvent.title, closesAt: ws.closesAt, endsAt: selectedEvent.ends_at, message: `This event ended on ${formatManila(selectedEvent.ends_at)}.` });
         }
       }
       const q = readQueue();
       q.push({ qr_token: token, event_id: selectedEventId, scanned_at: new Date().toISOString(), status: 'queued', reason: '' });
       writeQueue(q);
-      return show({ status: 'queued', event: selectedEvent?.title, message: 'Offline — queued for sync when reconnected.' });
+      return appendRecent({ status: 'queued', code: 'SAVED_OFFLINE', event: selectedEvent?.title, message: 'Scan saved. It will sync when the connection returns.' });
     }
 
     const { data, error } = await supabase.rpc('verify_attendance', {
@@ -190,55 +227,28 @@ async function verify(raw, mode = 'scan') {
       p_mode: mode
     });
     if (error) throw error;
-    show(data);
+    appendRecent(data);
   } catch (e) {
     const msg = errMsg(e);
     if (/network problem|failed to fetch/i.test(msg)) {
       if (selectedEvent && !selectedEvent.allow_early_test_attendance) {
         const ws = getAttendanceState(selectedEvent);
         if (ws.state === 'NOT_STARTED') {
-          return show({ status: 'not_started', code: 'EVENT_NOT_STARTED', event: selectedEvent.title, message: `Attendance opens on ${formatManila(ws.opensAt)}.` });
+          return appendRecent({ status: 'not_started', code: 'EVENT_NOT_STARTED', event: selectedEvent.title, opensAt: ws.opensAt });
         }
         if (ws.state === 'ENDED') {
-          return show({ status: 'ended', code: 'EVENT_ENDED', event: selectedEvent.title, message: 'Attendance for this event is closed.' });
+          return appendRecent({ status: 'ended', code: 'EVENT_ENDED', event: selectedEvent.title, closesAt: ws.closesAt, endsAt: selectedEvent.ends_at });
         }
       }
       const q = readQueue();
       q.push({ qr_token: token, event_id: selectedEventId, scanned_at: new Date().toISOString(), status: 'queued', reason: '' });
       writeQueue(q);
-      return show({ status: 'queued', event: selectedEvent?.title, message: 'Offline — queued for sync when reconnected.' });
+      return appendRecent({ status: 'queued', code: 'SAVED_OFFLINE', event: selectedEvent?.title });
     }
-    show({ status: 'error', message: msg });
+    appendRecent({ status: 'error', message: msg });
   } finally {
     busy = false;
   }
-}
-
-function show(r, fromSync = false) {
-  const map = {
-    ok:          [ICONS.check(22),   r.is_test ? 'Test check-in recorded' : 'Checked in'],
-    duplicate:   [ICONS.alert(22),   'Already checked in'],
-    not_started: [ICONS.clock(22),   'NOT OPEN YET'],
-    ended:       [ICONS.xCircle(22), 'ATTENDANCE CLOSED'],
-    wrong_event: [ICONS.alert(22),   'Wrong event'],
-    invalid:     [ICONS.xCircle(22), 'Invalid QR'],
-    cancelled:   [ICONS.xCircle(22), 'Not allowed'],
-    queued:      [ICONS.clock(22),   'Queued offline'],
-    error:       [ICONS.xCircle(22), 'Verification error']
-  };
-  const [ico, title] = map[r.status] || [ICONS.info(22), r.status];
-  const msgLine = r.status === 'not_started'
-    ? esc(r.message || 'Attendance has not opened yet.')
-    : esc(r.message || '');
-  $('#result').innerHTML = `<div class="result ${esc(r.status)}" role="status"><big>${ico}<span>${esc(title)}</span></big>${r.participant ? esc(r.participant) + '<br>' : ''}${r.event ? esc(r.event) + '<br>' : ''}<small>${msgLine}</small></div>`;
-  playTone(r.status);
-  if (navigator.vibrate) navigator.vibrate(r.status === 'ok' ? 120 : [80, 60, 80]);
-
-  // Only add valid/duplicate/synced items to Recent scans (never add rejected NOT_STARTED/ENDED)
-  if (r.status === 'not_started' || r.status === 'ended') return;
-  const li = document.createElement('li'); li.className = 'new';
-  li.innerHTML = `<span><b>${esc(r.participant || 'Queued scan')}</b>${r.is_test ? ' <span class="badge dup">TEST</span>' : ''}${fromSync ? ' <small class="muted">(synced)</small>' : ''}<br><small class="muted">${esc(r.event || r.message || '')}</small></span><span class="badge ${r.status === 'ok' ? 'ok' : r.status === 'duplicate' || r.status === 'queued' ? 'dup' : 'cancelled'}">${esc(r.status)}</span><small class="muted">${fmtTime(new Date())}</small>`;
-  $('#recent').prepend(li);
 }
 
 $('#ev').onchange = updateBanner;
@@ -251,8 +261,10 @@ $('#queueList').onclick = ev => {
   writeQueue(q);
 };
 window.addEventListener('online', syncQueue);
+document.addEventListener('pointerdown', unlockAudio, { once: true, passive: true });
 
 $('#start').onclick = async () => {
+  unlockAudio();
   $('#camErr').innerHTML = '';
   if (!window.isSecureContext) $('#camErr').innerHTML = '<div class="err">Camera requires HTTPS or localhost. Use the public HTTPS URL on phones (see README).</div>';
   try {
@@ -262,7 +274,11 @@ $('#start').onclick = async () => {
   } catch (e) { $('#camErr').innerHTML = `<div class="err">Cannot start camera: ${esc(errMsg(e))}</div>`; }
 };
 $('#stop').onclick = async () => { await scanner?.stop(); $('#start').disabled = false; $('#stop').disabled = true; };
-$('#verify').onclick = () => { const v = $('#manual').value.trim(); if (v) { last = { t: '', at: 0 }; verify(v, 'manual'); $('#manual').value = ''; } };
+$('#verify').onclick = () => {
+  unlockAudio();
+  const v = $('#manual').value.trim();
+  if (v) { last = { t: '', at: 0 }; verify(v, 'manual'); $('#manual').value = ''; }
+};
 $('#manual').addEventListener('keydown', e => { if (e.key === 'Enter') $('#verify').click(); });
 
 await loadEvents();

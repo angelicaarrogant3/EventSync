@@ -98,6 +98,10 @@ Migration `supabase/migrations/007_event_images.sql` adds two nullable columns t
 - **What happens if an image is missing or the server is unreachable?** An `onerror` handler removes the failed `<img>` and reveals the built-in dark/crimson placeholder with the EventSync logo and event initials, with zero layout shift.
 - **How do you track who did what?** Actions are written to an `activity_logs` table in the background; it is not shown in the interface to keep it simple. (Administrators can clear old logs via `npm run clear-activity-logs`.)
 
+## Scanner Station (Full-Screen Result Modal)
+- Every scan (camera, manual entry, or offline queue) opens a full-screen result modal on phones (`100dvh`, safe-area insets) and a centered 520 px card on desktop (`js/admin/scan-modal.js`), locking page scroll while open and pausing camera decoding without stopping the camera stream.
+- Outcomes use icon + title + color + distinct audio/vibration: **CHECKED IN** (green, 2s auto-close), **ALREADY CHECKED IN / NOT OPEN YET / ATTENDANCE CLOSED / SAVED OFFLINE** (amber/blue, 3s auto-close), and **WRONG EVENT / REGISTRATION CANCELLED / EVENT CANCELLED / INVALID QR** (red, stays until **Scan next**, backdrop tap, or `Enter`/`Space`/`Escape`). Durations are configurable in `SCAN_MODAL_CONFIG` (`js/admin/scan-modal.js`).
+
 ## Registration Window vs. Attendance Window & Test Mode
 - **Two separate windows (`config/schedule.js` + `supabase/migrations/010_attendance_windows.sql`):**
   1. **Registration window:** `events.registration_opens_at` to `events.registration_deadline` (enforced server-side in `_register_core()` for both participant and admin registration).
