@@ -5,10 +5,13 @@ export const SCAN_MODAL_CONFIG = {
   debounceMs: 2500,
   durations: {
     CHECKED_IN: 2000,
+    CHECKED_OUT: 2000,
     ALREADY_CHECKED_IN: 3000,
+    ALREADY_CHECKED_OUT: 3000,
     NOT_OPEN_YET: 3000,
     ATTENDANCE_CLOSED: 3000,
     SAVED_OFFLINE: 3000,
+    NO_TIME_IN_RECORDED: 0,
     WRONG_EVENT: 0,             // 0 = stay until staff taps "Scan next"
     REGISTRATION_CANCELLED: 0,
     EVENT_CANCELLED: 0,
@@ -22,7 +25,52 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 export function mapScanOutcome(r = {}) {
   const code = String(r.code || '').toUpperCase();
   const status = String(r.status || '').toLowerCase();
-  const scanTime = formatManila(r.checked_in_at || r.scanned_at || new Date());
+  const scanTime = formatManila(r.check_out_time || r.checked_in_at || r.scanned_at || new Date());
+
+  if (status === 'checked_out' || code === 'CHECKED_OUT') {
+    return {
+      key: 'CHECKED_OUT',
+      tone: 'blue',
+      icon: ICONS.check(38),
+      title: 'CHECKED OUT',
+      message: r.is_test ? 'Test time-out recorded.' : 'Time out recorded.',
+      timeLabel: scanTime,
+      participant: r.participant || '',
+      schoolId: r.school_id || '',
+      program: r.course ? (r.year_level ? `${r.course} · Year ${r.year_level}` : r.course) : '',
+      event: r.event || ''
+    };
+  }
+  if (status === 'already_checked_out' || code === 'ALREADY_CHECKED_OUT') {
+    const prevOut = formatManila(r.check_out_time);
+    const station = r.verified_by_name ? ` by ${r.verified_by_name}` : '';
+    return {
+      key: 'ALREADY_CHECKED_OUT',
+      tone: 'amber',
+      icon: ICONS.alert(38),
+      title: 'ALREADY CHECKED OUT',
+      message: `Earlier time-out: ${prevOut}${station}.`,
+      timeLabel: scanTime,
+      participant: r.participant || '',
+      schoolId: r.school_id || '',
+      program: r.course ? (r.year_level ? `${r.course} · Year ${r.year_level}` : r.course) : '',
+      event: r.event || ''
+    };
+  }
+  if (status === 'no_time_in' || code === 'NO_TIME_IN_RECORDED') {
+    return {
+      key: 'NO_TIME_IN_RECORDED',
+      tone: 'red',
+      icon: ICONS.xCircle(38),
+      title: 'NO TIME-IN RECORDED',
+      message: 'Participant must time in before timing out.',
+      timeLabel: scanTime,
+      participant: r.participant || '',
+      schoolId: r.school_id || '',
+      program: r.course ? (r.year_level ? `${r.course} · Year ${r.year_level}` : r.course) : '',
+      event: r.event || ''
+    };
+  }
 
   if (status === 'ok' || code === 'OK') {
     return {

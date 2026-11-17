@@ -10,9 +10,11 @@ await boot('admin', 'scan');
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const EV_CACHE_KEY = 'eventsync_cached_events';
 const QUEUE_KEY = 'eventsync_scan_queue';
+const MODE_KEY = 'eventsync_scan_mode';
 
-let scanner = null, busy = false, last = { t: '', at: 0 };
+let scanner = null, busy = false, last = { t: '', dir: '', at: 0 };
 let events = [];
+let scanMode = localStorage.getItem(MODE_KEY) === 'OUT' ? 'OUT' : 'IN';
 let audioCtx = null;
 
 function unlockAudio() {
@@ -40,7 +42,8 @@ function playTone(tone) {
       o.stop(ctx.currentTime + start + dur);
     };
     if (tone === 'green') { beep(880, 0, 0.09); beep(1174, 0.1, 0.13); }
-    else if (tone === 'amber' || tone === 'blue') { beep(440, 0, 0.14, 'triangle'); beep(330, 0.16, 0.18, 'triangle'); }
+    else if (tone === 'blue') { beep(660, 0, 0.09); beep(523, 0.1, 0.14); }
+    else if (tone === 'amber') { beep(440, 0, 0.14, 'triangle'); beep(330, 0.16, 0.18, 'triangle'); }
     else { beep(220, 0, 0.22, 'sawtooth'); beep(175, 0.24, 0.26, 'sawtooth'); }
   } catch {}
 }
@@ -137,6 +140,7 @@ function renderQueue() {
   $('#queueList').innerHTML = q.map((item, idx) => `
     <li>
       <span>
+        <span class="badge ${item.mode === 'OUT' ? 'mode-pill-out' : 'mode-pill-in'}">${esc(item.mode || 'IN')}</span>
         <b>${esc(item.qr_token.slice(0, 8))}…</b>
         <br><small class="muted">${esc(fmtTime(item.scanned_at))}${item.reason ? ` · <span style="color:#fca5a5">${esc(item.reason)}</span>` : ' · Waiting to sync'}</small>
       </span>
@@ -155,14 +159,22 @@ async function syncQueue() {
   $('#syncBtn').disabled = true;
   try {
     const { data, error } = await supabase.rpc('sync_offline_attendance', {
-      p_items: pending.map(x => ({ qr_token: x.qr_token, event_id: x.event_id || null, scanned_at: x.scanned_at }))
+      p_items: pending.map(x => ({
+        scan_id: x.scan_id,
+        qr_token: x.qr_token,
+        event_id: x.event_id || null,
+        mode: x.mode || 'IN',
+        scanned_at: x.scanned_at
+      }))
     });
     if (error) throw error;
     const results = Array.isArray(data) ? data : [];
+    const byScanId = new Map(results.filter(r => r.scan_id).map(r => [r.scan_id, r]));
     const nextQueue = q.filter(x => x.status === 'rejected');
-    results.forEach((res, i) => {
-      const orig = pending[i];
-      if (res.status === 'ok' || res.status === 'duplicate') {
+    pending.forEach((orig, i) => {
+      const res = byScanId.get(orig.scan_id) || results[i];
+      if (!res) return;
+      if (res.status === 'ok' || res.status === 'checked_out' || res.status === 'duplicate' || res.status === 'already_checked_out') {
         appendRecent(res, true);
       } else {
         nextQueue.push({ ...orig, status: 'rejected', reason: res.message || res.code || 'Rejected' });
@@ -181,10 +193,11 @@ async function syncQueue() {
 
 function appendRecent(r, fromSync = false) {
   const mapped = scanModal.open && !fromSync ? scanModal.open(r) : null;
-  const badgeClass = r.status === 'ok' ? 'ok' : (r.status === 'duplicate' || r.status === 'queued' || r.status === 'not_started') ? 'dup' : 'cancelled';
+  const badgeClass = (r.status === 'ok' || r.status === 'checked_out') ? 'ok' : (r.status === 'duplicate' || r.status === 'already_checked_out' || r.status === 'queued' || r.status === 'not_started') ? 'dup' : 'cancelled';
+  const dir = (r.mode || scanMode) === 'OUT' ? 'OUT' : 'IN';
   const label = mapped?.title || r.status;
   const li = document.createElement('li'); li.className = 'new';
-  li.innerHTML = `<span><b>${esc(r.participant || 'Unknown')}</b>${r.is_test ? ' <span class="badge dup">TEST</span>' : ''}${fromSync ? ' <small class="muted">(synced)</small>' : ''}<br><small class="muted">${esc(r.event || r.message || '')}</small></span><span class="badge ${badgeClass}">${esc(label)}</span><small class="muted">${fmtTime(new Date())}</small>`;
+  li.innerHTML = `<span><span class="badge ${dir === 'OUT' ? 'mode-pill-out' : 'mode-pill-in'}">${dir}</span> <b>${esc(r.participant || 'Unknown')}</b>${r.is_test ? ' <span class="badge dup">TEST</span>' : ''}${fromSync ? ' <small class="muted">(synced)</small>' : ''}<br><small class="muted">${esc(r.event || r.message || '')}</small></span><span class="badge ${badgeClass}">${esc(label)}</span><small class="muted">${fmtTime(new Date())}</small>`;
   $('#recent').prepend(li);
 }
 
@@ -199,32 +212,42 @@ async function verify(raw, mode = 'scan') {
     return;
   }
   const token = m[0].toLowerCase();
-  if (busy || (mode === 'scan' && token === last.t && Date.now() - last.at < SCAN_MODAL_CONFIG.debounceMs)) return;
-  busy = true; last = { t: token, at: Date.now() };
+  if (busy || (mode === 'scan' && token === last.t && scanMode === last.dir && Date.now() - last.at < SCAN_MODAL_CONFIG.debounceMs)) return;
+  busy = true; last = { t: token, dir: scanMode, at: Date.now() };
   const selectedEventId = $('#ev').value || null;
   const selectedEvent = events.find(x => x.id === selectedEventId) || null;
+  const queueItem = () => ({
+    scan_id: crypto.randomUUID(),
+    qr_token: token,
+    event_id: selectedEventId,
+    mode: scanMode,
+    scanned_at: new Date().toISOString(),
+    status: 'queued',
+    reason: ''
+  });
 
   try {
     if (!navigator.onLine) {
       if (selectedEvent && !selectedEvent.allow_early_test_attendance) {
         const ws = getAttendanceState(selectedEvent);
         if (ws.state === 'NOT_STARTED') {
-          return appendRecent({ status: 'not_started', code: 'EVENT_NOT_STARTED', event: selectedEvent.title, opensAt: ws.opensAt, message: `Attendance opens on ${formatManila(ws.opensAt)}.` });
+          return appendRecent({ status: 'not_started', code: 'EVENT_NOT_STARTED', mode: scanMode, event: selectedEvent.title, opensAt: ws.opensAt, message: `Attendance opens on ${formatManila(ws.opensAt)}.` });
         }
         if (ws.state === 'ENDED') {
-          return appendRecent({ status: 'ended', code: 'EVENT_ENDED', event: selectedEvent.title, closesAt: ws.closesAt, endsAt: selectedEvent.ends_at, message: `This event ended on ${formatManila(selectedEvent.ends_at)}.` });
+          return appendRecent({ status: 'ended', code: 'EVENT_ENDED', mode: scanMode, event: selectedEvent.title, closesAt: ws.closesAt, endsAt: selectedEvent.ends_at, message: `This event ended on ${formatManila(selectedEvent.ends_at)}.` });
         }
       }
       const q = readQueue();
-      q.push({ qr_token: token, event_id: selectedEventId, scanned_at: new Date().toISOString(), status: 'queued', reason: '' });
+      q.push(queueItem());
       writeQueue(q);
-      return appendRecent({ status: 'queued', code: 'SAVED_OFFLINE', event: selectedEvent?.title, message: 'Scan saved. It will sync when the connection returns.' });
+      return appendRecent({ status: 'queued', code: 'SAVED_OFFLINE', mode: scanMode, event: selectedEvent?.title, message: 'Scan saved. It will sync when the connection returns.' });
     }
 
     const { data, error } = await supabase.rpc('verify_attendance', {
       p_qr_token: token,
       p_event_id: selectedEventId,
-      p_mode: mode
+      p_mode: mode,
+      p_direction: scanMode
     });
     if (error) throw error;
     appendRecent(data);
@@ -234,18 +257,18 @@ async function verify(raw, mode = 'scan') {
       if (selectedEvent && !selectedEvent.allow_early_test_attendance) {
         const ws = getAttendanceState(selectedEvent);
         if (ws.state === 'NOT_STARTED') {
-          return appendRecent({ status: 'not_started', code: 'EVENT_NOT_STARTED', event: selectedEvent.title, opensAt: ws.opensAt });
+          return appendRecent({ status: 'not_started', code: 'EVENT_NOT_STARTED', mode: scanMode, event: selectedEvent.title, opensAt: ws.opensAt });
         }
         if (ws.state === 'ENDED') {
-          return appendRecent({ status: 'ended', code: 'EVENT_ENDED', event: selectedEvent.title, closesAt: ws.closesAt, endsAt: selectedEvent.ends_at });
+          return appendRecent({ status: 'ended', code: 'EVENT_ENDED', mode: scanMode, event: selectedEvent.title, closesAt: ws.closesAt, endsAt: selectedEvent.ends_at });
         }
       }
       const q = readQueue();
-      q.push({ qr_token: token, event_id: selectedEventId, scanned_at: new Date().toISOString(), status: 'queued', reason: '' });
+      q.push(queueItem());
       writeQueue(q);
-      return appendRecent({ status: 'queued', code: 'SAVED_OFFLINE', event: selectedEvent?.title });
+      return appendRecent({ status: 'queued', code: 'SAVED_OFFLINE', mode: scanMode, event: selectedEvent?.title });
     }
-    appendRecent({ status: 'error', message: msg });
+    appendRecent({ status: 'error', mode: scanMode, message: msg });
   } finally {
     busy = false;
   }
@@ -280,6 +303,21 @@ $('#verify').onclick = () => {
   if (v) { last = { t: '', at: 0 }; verify(v, 'manual'); $('#manual').value = ''; }
 };
 $('#manual').addEventListener('keydown', e => { if (e.key === 'Enter') $('#verify').click(); });
+
+function setMode(next) {
+  scanMode = next === 'OUT' ? 'OUT' : 'IN';
+  try { localStorage.setItem(MODE_KEY, scanMode); } catch {}
+  $('#modeIn').classList.toggle('active', scanMode === 'IN');
+  $('#modeOut').classList.toggle('active', scanMode === 'OUT');
+  $('#modeIn').setAttribute('aria-pressed', String(scanMode === 'IN'));
+  $('#modeOut').setAttribute('aria-pressed', String(scanMode === 'OUT'));
+  const badge = $('#modeBadge');
+  badge.textContent = `Mode: TIME ${scanMode}`;
+  badge.className = `badge ${scanMode === 'OUT' ? 'mode-pill-out' : 'mode-pill-in'}`;
+}
+$('#modeIn').onclick = () => { unlockAudio(); setMode('IN'); };
+$('#modeOut').onclick = () => { unlockAudio(); setMode('OUT'); };
+setMode(scanMode);
 
 await loadEvents();
 renderQueue();

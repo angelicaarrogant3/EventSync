@@ -109,7 +109,10 @@ test('mapScanOutcome maps all 9 outcomes with icon, title, and semantic tone', a
 
   const cases = [
     [{ status: 'ok', participant: 'Ana Cruz', school_id: '2024-01', course: 'BSCS', year_level: 3, event: 'Tech Day' }, 'CHECKED_IN', 'green'],
+    [{ status: 'checked_out', code: 'CHECKED_OUT', participant: 'Ana Cruz', check_out_time: '2026-11-25T03:50:00Z' }, 'CHECKED_OUT', 'blue'],
     [{ status: 'duplicate', participant: 'Ana Cruz', checked_in_at: '2026-11-25T00:00:00Z', verified_by_name: 'Gate 1' }, 'ALREADY_CHECKED_IN', 'amber'],
+    [{ status: 'already_checked_out', code: 'ALREADY_CHECKED_OUT', participant: 'Ana Cruz', check_out_time: '2026-11-25T03:50:00Z', verified_by_name: 'Exit Gate' }, 'ALREADY_CHECKED_OUT', 'amber'],
+    [{ status: 'no_time_in', code: 'NO_TIME_IN_RECORDED', participant: 'Ana Cruz' }, 'NO_TIME_IN_RECORDED', 'red'],
     [{ status: 'not_started', code: 'EVENT_NOT_STARTED', opensAt: '2026-11-24T23:00:00Z' }, 'NOT_OPEN_YET', 'amber'],
     [{ status: 'ended', code: 'EVENT_ENDED', endsAt: '2026-11-25T09:00:00Z' }, 'ATTENDANCE_CLOSED', 'amber'],
     [{ status: 'wrong_event', code: 'WRONG_EVENT', event: 'Other Summit' }, 'WRONG_EVENT', 'red'],
