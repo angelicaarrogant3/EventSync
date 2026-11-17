@@ -9,6 +9,7 @@ import {
   DEFAULT_EARLY_GRACE_MINUTES, DEFAULT_LATE_GRACE_MINUTES, DEFAULT_LATE_AFTER_MINUTES,
   parseManilaInput, toManilaInput, getAttendanceState, getDerivedEventStatus, formatManila
 } from '/config/schedule.js';
+import { validateFeedbackUrl } from '/config/feedback.js';
 
 const { profile } = await boot('admin', 'events');
 let events = [], editingId = null, editingImagePath = null, editingOrig = null;
@@ -92,8 +93,11 @@ async function load() {
   $('#list').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Title</th><th>When</th><th>Venue</th><th>Status</th><th>Reg / Cap</th><th>Attended</th><th></th></tr></thead><tbody>${events.map(e => {
     const dStatus = getDerivedEventStatus(e);
     const specialCount = (e.test_attended_count || 0) + (e.voided_count || 0);
+    const fbSet = !!(e.has_feedback_url || e.feedback_url);
+    const endedNoFb = dStatus.label === 'Ended' && !fbSet && e.status !== 'cancelled';
+    const canToggleEarly = fbSet && new Date(e.ends_at) > new Date() && e.status !== 'cancelled';
     return `<tr>
-      <td class="wrap" data-label="Title"><div class="evt-admin-title">${eventBannerHtml(e, { variant: 'thumb' })}<div><b>${esc(e.title)}</b>${e.allow_early_test_attendance ? ' <span class="badge dup">TEST MODE</span>' : ''}</div></div></td>
+      <td class="wrap" data-label="Title"><div class="evt-admin-title">${eventBannerHtml(e, { variant: 'thumb' })}<div><b>${esc(e.title)}</b>${e.allow_early_test_attendance ? ' <span class="badge dup">TEST MODE</span>' : ''}<br><span class="badge ${fbSet ? 'ok' : ''}" style="margin-top:.25rem">Feedback: ${fbSet ? 'set' : 'not set'}</span>${e.feedback_opened_early ? ' <span class="badge dup">Open early</span>' : ''}${endedNoFb ? '<br><small class="muted">This event ended. Add a feedback form link.</small>' : ''}</div></div></td>
       <td data-label="When">${fmt(e.starts_at)}</td>
       <td data-label="Venue">${esc(e.venue)}</td>
       <td data-label="Status"><span class="badge ${e.status}">${e.status}</span> <span class="badge ${dStatus.code}">${dStatus.label}</span></td>
@@ -102,6 +106,7 @@ async function load() {
       <td data-label="Actions"><div class="row">
         <button class="btn sm ghost" data-a="edit" data-id="${e.id}">Edit</button>
         <button class="btn sm ghost" data-a="att" data-id="${e.id}">Check-ins${specialCount ? ` (${specialCount})` : ''}</button>
+        ${canToggleEarly ? `<button class="btn sm ${e.feedback_opened_early ? 'ghost' : 'ok'}" data-a="fbEarly" data-id="${e.id}">${e.feedback_opened_early ? 'Close early feedback' : 'Open feedback now'}</button>` : ''}
         <button class="btn sm ${e.status === 'published' ? 'ghost' : 'ok'}" data-a="toggle" data-id="${e.id}">${e.status === 'published' ? 'Unpublish' : 'Publish'}</button>
         <button class="btn sm danger" data-a="del" data-id="${e.id}">Delete</button></div></td>
     </tr>`;
@@ -135,6 +140,8 @@ function openForm(e) {
   $('#cap').value = e?.capacity ?? '';
   $('#status').value = e?.status || 'draft';
   $('#testMode').checked = !!e?.allow_early_test_attendance;
+  $('#fbUrl').value = e?.feedback_url || '';
+  $('#fbAudience').value = e?.feedback_audience || 'attended';
   updateScheduleHint();
   dlg.showModal();
 }
@@ -228,8 +235,16 @@ drop.ondrop = ev => {
 
 $('#newBtn').onclick = () => openForm();
 $('#cancel').onclick = () => { clearPreviewUrl(); dlg.close(); };
+$('#fbTestBtn').onclick = () => {
+  const res = validateFeedbackUrl($('#fbUrl').value);
+  if (!res.ok) return toast(res.error, 'error');
+  if (!res.url) return toast('Paste a Google Form link first.', 'info');
+  window.open(res.url, '_blank', 'noopener,noreferrer');
+};
 $('#form').onsubmit = async ev => {
   ev.preventDefault();
+  const fbRes = validateFeedbackUrl($('#fbUrl').value);
+  if (!fbRes.ok) return toast(fbRes.error, 'error');
   const row = {
     title: $('#title').value.trim(), venue: $('#venue').value.trim(), description: $('#desc').value.trim() || null,
     starts_at: parseManilaInput($('#starts').value),
@@ -241,7 +256,9 @@ $('#form').onsubmit = async ev => {
     late_after_minutes: $('#lateAfter').value.trim() === '' ? null : Math.max(0, Math.min(1440, parseInt($('#lateAfter').value, 10))),
     capacity: $('#cap').value ? parseInt($('#cap').value, 10) : null,
     status: $('#status').value,
-    allow_early_test_attendance: $('#testMode').checked
+    allow_early_test_attendance: $('#testMode').checked,
+    feedback_url: fbRes.url,
+    feedback_audience: $('#fbAudience').value || 'attended'
   };
   if (!row.starts_at || !row.ends_at || new Date(row.ends_at) <= new Date(row.starts_at)) {
     return toast('Event end must be after start', 'error');
@@ -325,6 +342,15 @@ $('#list').onclick = async ev => {
   const e = events.find(x => x.id === b.dataset.id);
   if (b.dataset.a === 'edit') return openForm(e);
   if (b.dataset.a === 'att') return openCheckinsModal(e);
+  if (b.dataset.a === 'fbEarly') {
+    const next = !e.feedback_opened_early;
+    const msg = next
+      ? `Open the feedback form now for "${e.title}" before its scheduled end time?`
+      : `Turn off early feedback for "${e.title}"?`;
+    if (!confirm(msg)) return;
+    const { error } = await supabase.rpc('admin_set_feedback_early', { p_event_id: e.id, p_open: next });
+    if (error) toast(errMsg(error), 'error'); else { toast(next ? 'Feedback opened early' : 'Early feedback closed', 'success'); load(); }
+  }
   if (b.dataset.a === 'toggle') {
     const { error } = await supabase.from('events').update({ status: e.status === 'published' ? 'draft' : 'published' }).eq('id', e.id);
     if (error) toast(errMsg(error), 'error'); else { toast('Status updated', 'success'); load(); }
