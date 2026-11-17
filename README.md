@@ -97,4 +97,16 @@ Migration `supabase/migrations/007_event_images.sql` adds two nullable columns t
 - **How are uploads secured?** Only authenticated administrators can write or delete in `event-images` (enforced by Supabase Storage RLS + `public.is_admin()`). Files are checked by magic bytes (JPEG, PNG, WebP only — no SVG/GIF), capped at 5 MB, re-encoded on canvas (stripping EXIF metadata), and given server-safe random filenames.
 - **What happens if an image is missing or the server is unreachable?** An `onerror` handler removes the failed `<img>` and reveals the built-in dark/crimson placeholder with the EventSync logo and event initials, with zero layout shift.
 
+## Registration Window vs. Attendance Window & Test Mode
+- **Two separate windows (`config/schedule.js` + `supabase/migrations/010_attendance_windows.sql`):**
+  1. **Registration window:** `events.registration_opens_at` to `events.registration_deadline` (enforced server-side in `_register_core()` for both participant and admin registration).
+  2. **Attendance window:** `events.starts_at - early_grace_minutes` (default 60 min) to `events.ends_at + late_grace_minutes` (default 60 min), in `Asia/Manila`. Enforced server-side by `get_attendance_state()` across scan, manual, and offline sync (`sync_offline_attendance()`).
+- **Database fields added:** `events` (`registration_opens_at`, `early_grace_minutes`, `late_grace_minutes`, `allow_early_test_attendance`), `attendance` (`is_test`, `clock_suspect`, `voided`, `void_reason`, `voided_by`, `voided_at`).
+- **Test mode:** Admins can toggle *"Allow attendance outside the schedule (test mode)"* per event to demo early; those records are flagged `is_test = true`, excluded from reports/dashboards by default, and removable via **Clear test check-ins**.
+- **Fixing historical out-of-window check-ins:** Run `PGURL=... npm run fix-early-checkins` (dry-run by default) and `PGURL=... npm run fix-early-checkins -- --apply` to void out-of-window records with an audit trail (or restore via **Check-ins** on `/admin/events`).
+- **Defense Q&A:**
+  - *Why is attendance validated on the server?* Client UI checks can be bypassed or run with a wrong device clock. PostgreSQL (`get_attendance_state()` inside `_record_attendance()`) uses the authoritative server clock before writing any row.
+  - *How are offline scans validated?* Each queued scan records `scanned_at` on the device; `sync_offline_attendance()` rejects future timestamps, flags `clock_suspect` if `scanned_at` differs >1 hour from server receive time, and validates `scanned_at` against the event's attendance window.
+
+
 
