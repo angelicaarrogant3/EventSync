@@ -118,27 +118,32 @@ test('DB attendance_sheet: totals match registered/present/absent, Present-only 
 
   const ev = (await c.query(
     `insert into public.events(title,venue,starts_at,ends_at,capacity,status)
-     values ('SHEET TEST','Main Hall',now()+interval '1 hour',now()+interval '3 hours',10,'published') returning id`
+     values ('SHEET TEST','Main Hall',now()+interval '30 minutes',now()+interval '2 hours',10,'published') returning id`
   )).rows[0].id;
 
   // zero-registration event
   const empty = (await as(adminId, "select public.attendance_sheet($1, 'all', null) d", [ev]))[0].d;
   assert.equal(empty.rows.length, 0);
-  assert.deepEqual(empty.totals, { registered: 0, present: 0, absent: 0 });
+  assert.deepEqual(empty.totals, { registered: 0, present: 0, absent: 0, pending: 0 });
 
-  // register 2 users, check in 1
+  // register 2 users, check in 1 (inside 60m grace window)
   const r1 = (await as(users[0], 'select public.register_for_event($1) r', [ev]))[0].r;
   await as(users[1], 'select public.register_for_event($1) r', [ev]);
   await as(adminId, 'select public.verify_attendance($1)', [r1.qr_token]);
 
+  // While ongoing, un-checked-in person is Pending (not Absent)
   const all = (await as(adminId, "select public.attendance_sheet($1, 'all', 'xlsx') d", [ev]))[0].d;
   assert.equal(all.rows.length, all.totals.registered);
-  assert.deepEqual(all.totals, { registered: 2, present: 1, absent: 1 });
+  assert.deepEqual(all.totals, { registered: 2, present: 1, absent: 0, pending: 1 });
 
-  const presentOnly = (await as(adminId, "select public.attendance_sheet($1, 'present', 'csv') d", [ev]))[0].d;
+  // After event ends, un-checked-in person is Absent
+  const ended = (await as(adminId, "select public.attendance_sheet($1, 'all', null, false, now()+interval '4 hours') d", [ev]))[0].d;
+  assert.deepEqual(ended.totals, { registered: 2, present: 1, absent: 1, pending: 0 });
+
+  const presentOnly = (await as(adminId, "select public.attendance_sheet($1, 'present', 'csv', false, now()+interval '4 hours') d", [ev]))[0].d;
   assert.equal(presentOnly.rows.length, 1);
   assert.equal(presentOnly.rows[0].present, true);
-  assert.deepEqual(presentOnly.totals, { registered: 2, present: 1, absent: 1 });
+  assert.deepEqual(presentOnly.totals, { registered: 2, present: 1, absent: 1, pending: 0 });
 
   // exports were logged
   const logs = (await c.query("select details from public.activity_logs where action='report.exported' and entity_id=$1 order by id", [ev])).rows;
