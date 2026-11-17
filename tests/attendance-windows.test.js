@@ -125,10 +125,10 @@ test('server-side attendance & registration windows + offline sync + test mode (
     ]),
     parseManilaInput('2026-11-25T20:00')
   ]))[0].r;
-  assert.equal(syncRes[0].code, 'FUTURE_TIMESTAMP');
-  assert.equal(syncRes[1].code, 'EVENT_NOT_STARTED');
-  assert.equal(syncRes[2].status, 'ok');
-  assert.equal(syncRes[2].clock_suspect, true);
+  assert.equal(syncRes[0].code, 'EVENT_NOT_STARTED');
+  assert.equal(syncRes[1].status, 'ok');
+  assert.equal(syncRes[1].clock_suspect, true);
+  assert.equal(syncRes[2].code, 'FUTURE_TIMESTAMP');
 
   // Reports before event vs after event
   const repBefore = (await as(adminId, "select public.attendance_sheet($1, 'all', null, false, $2) r", [evId, parseManilaInput('2026-11-17T12:00')]))[0].r;

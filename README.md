@@ -100,7 +100,13 @@ Migration `supabase/migrations/007_event_images.sql` adds two nullable columns t
 
 ## Scanner Station (Full-Screen Result Modal)
 - Every scan (camera, manual entry, or offline queue) opens a full-screen result modal on phones (`100dvh`, safe-area insets) and a centered 520 px card on desktop (`js/admin/scan-modal.js`), locking page scroll while open and pausing camera decoding without stopping the camera stream.
-- Outcomes use icon + title + color + distinct audio/vibration: **CHECKED IN** (green, 2s auto-close), **ALREADY CHECKED IN / NOT OPEN YET / ATTENDANCE CLOSED / SAVED OFFLINE** (amber/blue, 3s auto-close), and **WRONG EVENT / REGISTRATION CANCELLED / EVENT CANCELLED / INVALID QR** (red, stays until **Scan next**, backdrop tap, or `Enter`/`Space`/`Escape`). Durations are configurable in `SCAN_MODAL_CONFIG` (`js/admin/scan-modal.js`).
+- Outcomes use icon + title + color + distinct audio/vibration: **CHECKED IN** (green, 2s auto-close), **CHECKED OUT** (blue, 2s auto-close), **ALREADY CHECKED IN / ALREADY CHECKED OUT / NOT OPEN YET / ATTENDANCE CLOSED / SAVED OFFLINE** (amber/blue, 3s auto-close), and **NO TIME-IN RECORDED / WRONG EVENT / REGISTRATION CANCELLED / EVENT CANCELLED / INVALID QR** (red, stays until **Scan next**, backdrop tap, or `Enter`/`Space`/`Escape`). Durations are configurable in `SCAN_MODAL_CONFIG` (`js/admin/scan-modal.js`).
+
+## Time-In & Time-Out
+- **Scanner switch (`/admin/scan`):** Staff choose **[ Time In ]** (green, default) or **[ Time Out ]** (blue), persisted on the device with a visible `Mode: TIME IN` / `Mode: TIME OUT` badge.
+- **Database (`supabase/migrations/014_time_out.sql`):** Adds `check_out_time`, `check_out_scan_id` (unique), `check_in_scan_id` (unique), and `checked_out_by_user_id` to `public.attendance`.
+- **Atomic concurrency & offline sync:** Time-out uses `UPDATE ... WHERE check_out_time IS NULL AND NOT voided` so two concurrent scanners cannot both set time-out. Offline sync processes queued items in `scanned_at` order and is idempotent by `scan_id`.
+- **Defense Q&A — Why use the same QR code for Time In and Time Out?** The QR pass identifies the registration (`qr_token`), while the scanner's selected mode (`IN` | `OUT`) and the stored database state (`checked_in_at` / `check_out_time`) determine whether to record a time-in, record a time-out, or reject (`NO TIME-IN RECORDED`, `ALREADY CHECKED IN`, `ALREADY CHECKED OUT`).
 
 ## Registration Window vs. Attendance Window & Test Mode
 - **Two separate windows (`config/schedule.js` + `supabase/migrations/010_attendance_windows.sql`):**

@@ -27,7 +27,7 @@ async function load() {
   $('#testChip').hidden = !(sel?.allow_early_test_attendance);
 
   let rq = supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('status', 'registered');
-  let aq = supabase.from('attendance').select('id,checked_in_at,is_test,profiles!attendance_user_id_fkey(full_name),events(title,starts_at,late_after_minutes)').eq('voided', false).order('checked_in_at', { ascending: false }).limit(50);
+  let aq = supabase.from('attendance').select('id,checked_in_at,check_out_time,is_test,profiles!attendance_user_id_fkey(full_name),events(title,starts_at,late_after_minutes)').eq('voided', false).order('checked_in_at', { ascending: false }).limit(50);
   let cq = supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('voided', false);
   if (!incTest) { aq = aq.eq('is_test', false); cq = cq.eq('is_test', false); }
   if (id) { rq = rq.eq('event_id', id); aq = aq.eq('event_id', id); cq = cq.eq('event_id', id); }
@@ -39,7 +39,8 @@ async function load() {
   $('#sPct').textContent = pct + '%'; $('#barfill').style.width = Math.min(pct, 100) + '%';
   $('#feed').innerHTML = a.data.length ? a.data.map(x => {
     const late = isLateCheckIn(x.events, x.checked_in_at);
-    return `<li class="${!first && !seen.has(x.id) ? 'new' : ''}"><div class="row" style="gap:.65rem;flex-wrap:nowrap"><span class="avatar">${esc(initials(x.profiles?.full_name))}</span><span><b>${esc(x.profiles?.full_name)}</b>${x.is_test ? ' <span class="badge dup">TEST</span>' : ''}${late ? ' <span class="badge dup">Present (Late)</span>' : ''}<br><small class="muted">${esc(x.events?.title)}</small></span></div><span class="muted sm">${fmtTime(x.checked_in_at)}</span></li>`;
+    const outChip = x.check_out_time ? ` <span class="badge mode-pill-out">Time out ${fmtTime(x.check_out_time)}</span>` : '';
+    return `<li class="${!first && !seen.has(x.id) ? 'new' : ''}"><div class="row" style="gap:.65rem;flex-wrap:nowrap"><span class="avatar">${esc(initials(x.profiles?.full_name))}</span><span><b>${esc(x.profiles?.full_name)}</b> <span class="badge mode-pill-in">Time in</span>${x.is_test ? ' <span class="badge dup">TEST</span>' : ''}${late ? ' <span class="badge dup">Present (Late)</span>' : ''}${outChip}<br><small class="muted">${esc(x.events?.title)}</small></span></div><span class="muted sm">${fmtTime(x.check_out_time || x.checked_in_at)}</span></li>`;
   }).join('') : '<li class="empty">No check-ins yet.</li>';
   a.data.forEach(x => seen.add(x.id)); first = false;
 }

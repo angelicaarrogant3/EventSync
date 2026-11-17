@@ -4,7 +4,7 @@ import { formatProgramShort } from '../../config/programs.js';
 import { isLateCheckIn } from '../../config/schedule.js';
 
 export const TZ = 'Asia/Manila';
-export const COLUMNS = ['No.', 'Full Name', 'School ID', 'Program (Major) / Year', 'Role', 'Time In', 'Attendance'];
+export const COLUMNS = ['No.', 'Full Name', 'School ID', 'Program (Major) / Year', 'Role', 'Time In', 'Time Out', 'Attendance'];
 const clean = s => s.replace(/[\u202f\u00a0]/g, ' ');
 
 export const fmtDateTime = d => d ? clean(new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(d))) : '-';
@@ -37,10 +37,12 @@ export function buildSheetModel(data, generatedAt = new Date()) {
     .map(([sc, v]) => [sc, v.reg, v.pres, v.abs]);
 
   const lateCount = t.late ?? data.rows.filter(r => r.present && (r.is_late || isLateCheckIn(ev, r.time_in))).length;
+  const timedOutCount = t.timed_out ?? data.rows.filter(r => r.present && r.time_out).length;
   const totals = [
     ['Total Registered', t.registered],
     ['Total Present', t.present],
     ['Total Late', lateCount],
+    ['Total Timed Out', timedOutCount],
     ['Total Absent', isEnded ? t.absent : 0]
   ];
   if (!isEnded && (t.pending ?? (t.registered - t.present)) > 0) {
@@ -54,7 +56,7 @@ export function buildSheetModel(data, generatedAt = new Date()) {
       const late = r.present && (r.is_late || isLateCheckIn(ev, r.time_in));
       const baseStatus = r.status_label || (r.present ? (late ? 'Present (Late)' : 'Present') : (isEnded ? 'Absent' : 'Pending'));
       const status = r.present && r.is_test ? `${baseStatus} (Test)` : baseStatus;
-      return [i + 1, r.full_name, r.school_id || '-', formatProgramShort(r), ROLE[r.member_type] || '-', r.present ? fmtTime(r.time_in) : '-', status];
+      return [i + 1, r.full_name, r.school_id || '-', formatProgramShort(r), ROLE[r.member_type] || '-', r.present ? fmtTime(r.time_in) : '-', r.present && r.time_out ? fmtTime(r.time_out) : '-', status];
     }),
     totals,
     schoolBreakdown,
@@ -74,7 +76,7 @@ export function toCsv(m) {
 
 /* ---------------- Excel (.xlsx) via ExcelJS ---------------- */
 const BORDER = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-const MIN_W = [6, 24, 14, 26, 10, 10, 12];
+const MIN_W = [6, 24, 14, 26, 10, 10, 10, 14];
 const MAX_NAME_W = 60;
 
 export function columnWidths(m) {
@@ -119,7 +121,7 @@ export function buildWorkbook(ExcelJS, m) {
     row.forEach((v, i) => {
       const cell = ws.getCell(r, i + 1);
       cell.value = v; cell.border = BORDER;
-      cell.alignment = { vertical: 'middle', horizontal: [0, 5, 6].includes(i) ? 'center' : 'left', wrapText: i === 1 };
+      cell.alignment = { vertical: 'middle', horizontal: [0, 5, 6, 7].includes(i) ? 'center' : 'left', wrapText: i === 1 };
     });
     r++;
   }
@@ -187,7 +189,7 @@ export function renderPrintHtml(m) {
     <h1 class="sheet-title">${esc(m.title)}</h1>
     <table class="sheet-head">${m.header.map(([k, v]) => `<tr><th>${esc(k)}:</th><td>${esc(v)}</td></tr>`).join('')}</table>
     <table class="sheet-table"><thead><tr>${m.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-      <tbody>${m.rows.map(r => `<tr>${r.map((v, i) => `<td class="${[0, 5, 6].includes(i) ? 'c' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${m.columns.length}" class="c">No attendees</td></tr>`}</tbody></table>
+      <tbody>${m.rows.map(r => `<tr>${r.map((v, i) => `<td class="${[0, 5, 6, 7].includes(i) ? 'c' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${m.columns.length}" class="c">No attendees</td></tr>`}</tbody></table>
     <div class="sheet-totals">${m.totals.map(([k, v]) => `<div><b>${esc(k)}:</b> ${esc(v)}</div>`).join('')}</div>
     ${m.schoolBreakdown?.length ? `<h3 style="margin:.9rem 0 .4rem;font-size:.95rem">Attendance by School / Office</h3>
       <table class="sheet-table"><thead><tr><th>School / Office</th><th>Registered</th><th>Present</th><th>Absent</th></tr></thead>

@@ -1,6 +1,6 @@
 import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
-import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
+import { $, esc, fmt, fmtTime, toast, errMsg, watch } from '/js/core/ui.js';
 import { openQrModal } from '/js/user/qr-modal.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
@@ -12,7 +12,7 @@ let rows = [];
 
 async function load() {
   const { data, error } = await supabase.from('registrations')
-    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,early_grace_minutes,late_grace_minutes,late_after_minutes,status,image_path,image_updated_at),attendance(checked_in_at,voided,is_test)')
+    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,early_grace_minutes,late_grace_minutes,late_after_minutes,status,image_path,image_updated_at),attendance(checked_in_at,check_out_time,voided,is_test)')
     .order('registered_at', { ascending: false });
   if (error) return toast(errMsg(error), 'error');
   rows = data; render();
@@ -34,6 +34,9 @@ function render() {
           ? ['cancelled', 'Absent']
           : ['registered', 'Pending'];
     const canCancel = r.status === 'registered' && !att && !started;
+    const timesLine = att
+      ? `<p class="muted sm" style="margin:.25rem 0 0">Time in ${fmtTime(att.checked_in_at)}${att.check_out_time ? ` · Time out ${fmtTime(att.check_out_time)}` : ''}</p>`
+      : '';
     return `<div class="card hoverable fade-in">
       <div class="evt-reg-head">
         ${eventBannerHtml(r.events || { title: 'Event' }, { variant: 'reg' })}
@@ -41,6 +44,7 @@ function render() {
           <h2>${esc(r.events?.title)}</h2>
           <p class="muted sm">${ICONS.clock(14)} ${fmt(r.events?.starts_at)}<br>${ICONS.pin(14)} ${esc(r.events?.venue)}</p>
           <p><span class="badge ${label[0]}">${label[1]}</span></p>
+          ${timesLine}
         </div>
       </div>
       <div class="row" style="margin-top:.6rem">

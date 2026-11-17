@@ -39,3 +39,4 @@ All devices show the same counts within ~1–2 s; no duplicates in `registration
 3. **Duplicate scan:** Scan the same pass again → amber **ALREADY CHECKED IN** modal shows earlier time and station, auto-closes in 3s.
 4. **Future event:** Select or scan a pass for a future event → amber **NOT OPEN YET** modal shows `"Attendance opens ..."`, `"No attendance was recorded."`, auto-closes in 3s.
 5. **Wrong code:** Enter `"not-a-qr"` in manual entry and tap **Verify** → red **INVALID QR** modal stays open until you tap **Scan next** (or tap backdrop).
+6. **Two-phone Time In & Time Out:** Set Phone A to **Time In** and Phone B to **Time Out**. Scan a pass on Phone B before Phone A → red **NO TIME-IN RECORDED**. Scan on Phone A → green **CHECKED IN**. Scan on Phone B → blue **CHECKED OUT**; Live Monitor and My Registrations show both Time in and Time out, and Reports show both columns.
