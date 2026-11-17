@@ -5,6 +5,7 @@ import { openQrModal } from '/js/user/qr-modal.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
 import { formatProgramShort } from '/js/shared/participant-options.js';
+import { getRegistrationState } from '/config/schedule.js';
 
 const { profile } = await boot('user', 'events');
 let events = [];                 // published events (events table => live registered_count)
@@ -16,11 +17,11 @@ const norm = a => (Array.isArray(a) ? a[0] : a) || null;
 /** Decide what the card's action area shows. */
 function stateFor(e) {
   const reg = mine.get(e.id);
-  const now = Date.now();
+  const now = new Date();
   if (reg?.status === 'registered') return { kind: 'registered', attended: reg.attended };
   if (e.capacity && e.registered_count >= e.capacity) return { kind: 'disabled', label: 'Full' };
-  if (e.registration_deadline && new Date(e.registration_deadline) < now) return { kind: 'disabled', label: 'Registration closed', reason: 'The registration deadline has passed' };
-  if (new Date(e.ends_at) < now) return { kind: 'disabled', label: 'Event ended', reason: 'This event has already ended' };
+  const rs = getRegistrationState(e, now);
+  if (!rs.open) return { kind: 'disabled', label: 'Registration closed', reason: rs.reason };
   return { kind: 'open', label: reg?.status === 'cancelled' ? 'Register again' : 'Register' };
 }
 
@@ -51,13 +52,16 @@ function render() {
 async function load() {
   const [ev, rg] = await Promise.all([
     supabase.from('events').select('*').eq('status', 'published').gte('ends_at', new Date().toISOString()).order('starts_at'),
-    supabase.from('registrations').select('id,event_id,status,qr_token,attendance(checked_in_at)')
+    supabase.from('registrations').select('id,event_id,status,qr_token,attendance(checked_in_at,voided,is_test)')
   ]);
   if (ev.error) return toast(errMsg(ev.error), 'error');
   events = ev.data;
   if (!rg.error) {
     mine.clear();
-    rg.data.forEach(r => mine.set(r.event_id, { id: r.id, status: r.status, qr_token: r.qr_token, attended: !!norm(r.attendance) }));
+    rg.data.forEach(r => {
+      const att = norm(r.attendance);
+      mine.set(r.event_id, { id: r.id, status: r.status, qr_token: r.qr_token, attended: !!(att && !att.voided && !att.is_test) });
+    });
   }
   render();
 }

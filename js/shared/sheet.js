@@ -17,25 +17,42 @@ export const attendanceRate = (registered, present) => registered > 0 ? Math.rou
 /** data = result of rpc('attendance_sheet') */
 export function buildSheetModel(data, generatedAt = new Date()) {
   const t = data.totals, ev = data.event;
+  const isEnded = ev.attendance_state ? ev.attendance_state === 'ENDED' : true;
   const header = [['Event', ev.title], ['Starts', fmtDateTime(ev.starts_at)], ['Ends', fmtDateTime(ev.ends_at)], ['Venue', ev.venue || '-'], ['Generated', fmtDateTime(generatedAt)]];
   if (data.filter === 'present') header.push(['Showing', 'Present only']);
+  if (data.include_test) header.push(['Test records', 'Included']);
 
   const bySchool = new Map();
   for (const r of data.rows) {
     const sc = r.department || 'Unspecified';
-    const cur = bySchool.get(sc) || { reg: 0, pres: 0 };
+    const cur = bySchool.get(sc) || { reg: 0, pres: 0, abs: 0 };
     cur.reg += 1;
     if (r.present) cur.pres += 1;
+    else if (isEnded) cur.abs += 1;
     bySchool.set(sc, cur);
   }
   const schoolBreakdown = [...bySchool.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([sc, v]) => [sc, v.reg, v.pres, v.reg - v.pres]);
+    .map(([sc, v]) => [sc, v.reg, v.pres, v.abs]);
+
+  const totals = [
+    ['Total Registered', t.registered],
+    ['Total Present', t.present],
+    ['Total Absent', isEnded ? t.absent : 0]
+  ];
+  if (!isEnded && (t.pending ?? (t.registered - t.present)) > 0) {
+    totals.push(['Total Pending', t.pending ?? (t.registered - t.present)]);
+  }
+  totals.push(['Attendance Rate', attendanceRate(t.registered, t.present) + '%']);
 
   return {
     title: 'EVENT ATTENDANCE SHEET', header, columns: COLUMNS,
-    rows: data.rows.map((r, i) => [i + 1, r.full_name, r.school_id || '-', formatProgramShort(r), ROLE[r.member_type] || '-', r.present ? fmtTime(r.time_in) : '-', r.present ? 'Present' : 'Absent']),
-    totals: [['Total Registered', t.registered], ['Total Present', t.present], ['Total Absent', t.absent], ['Attendance Rate', attendanceRate(t.registered, t.present) + '%']],
+    rows: data.rows.map((r, i) => {
+      const baseStatus = r.status_label || (r.present ? 'Present' : (isEnded ? 'Absent' : 'Pending'));
+      const status = r.present && r.is_test ? `${baseStatus} (Test)` : baseStatus;
+      return [i + 1, r.full_name, r.school_id || '-', formatProgramShort(r), ROLE[r.member_type] || '-', r.present ? fmtTime(r.time_in) : '-', status];
+    }),
+    totals,
     schoolBreakdown,
     signatures: ['Prepared by: ______________________', 'Verified by: ______________________'],
     eventTitle: ev.title, eventStart: ev.starts_at, generatedAt

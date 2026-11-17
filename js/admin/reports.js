@@ -43,7 +43,9 @@ function setExportEnabled(on) {
 async function fetchSheet(format = null) {
   const id = $('#ev').value;
   if (!id) return null;
-  const { data, error } = await supabase.rpc('attendance_sheet', { p_event_id: id, p_filter: $('#filter').value, p_format: format });
+  const { data, error } = await supabase.rpc('attendance_sheet', {
+    p_event_id: id, p_filter: $('#filter').value, p_format: format, p_include_test: $('#incTest').checked
+  });
   if (error) throw error;
   return buildSheetModel(data);
 }
@@ -89,6 +91,7 @@ async function exportSummary() {
 
 $('#ev').onchange = loadDetail;
 $('#filter').onchange = loadDetail;
+$('#incTest').onchange = loadDetail;
 $('#xlsx').onclick = () => exportEvent('xlsx');
 $('#pdf').onclick = () => exportEvent('pdf');
 $('#sumXlsx').onclick = () => exportSummary();

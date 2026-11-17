@@ -5,13 +5,14 @@ import { openQrModal } from '/js/user/qr-modal.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
 import { formatProgramShort } from '/js/shared/participant-options.js';
+import { getAttendanceState } from '/config/schedule.js';
 
 const { profile } = await boot('user', 'registrations');
 let rows = [];
 
 async function load() {
   const { data, error } = await supabase.from('registrations')
-    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,image_path,image_updated_at),attendance(checked_in_at)')
+    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,early_grace_minutes,late_grace_minutes,status,image_path,image_updated_at),attendance(checked_in_at,voided,is_test)')
     .order('registered_at', { ascending: false });
   if (error) return toast(errMsg(error), 'error');
   rows = data; render();
@@ -20,9 +21,17 @@ async function load() {
 function render() {
   if (!rows.length) { $('#list').innerHTML = '<div class="card empty" style="grid-column:1/-1">No registrations yet. <a href="/user/events">Browse events</a>.</div>'; return; }
   $('#list').innerHTML = rows.map(r => {
-    const att = Array.isArray(r.attendance) ? r.attendance[0] : r.attendance;
+    const rawAtt = Array.isArray(r.attendance) ? r.attendance[0] : r.attendance;
+    const att = rawAtt && !rawAtt.voided && !rawAtt.is_test ? rawAtt : null;
     const started = r.events && new Date(r.events.starts_at) <= new Date();
-    const label = r.status === 'cancelled' ? ['cancelled', 'Cancelled'] : att ? ['ok', `Attended · ${fmt(att.checked_in_at)}`] : ['registered', 'Registered'];
+    const ended = r.events && getAttendanceState(r.events).state === 'ENDED';
+    const label = r.status === 'cancelled'
+      ? ['cancelled', 'Cancelled']
+      : att
+        ? ['ok', `Attended · ${fmt(att.checked_in_at)}`]
+        : ended
+          ? ['cancelled', 'Absent']
+          : ['registered', 'Pending'];
     const canCancel = r.status === 'registered' && !att && !started;
     return `<div class="card hoverable fade-in">
       <div class="evt-reg-head">
