@@ -204,17 +204,35 @@ async function verify(raw, mode = 'scan') {
   // Pause camera decoding while modal is open (manual verify still replaces open modal)
   if (mode === 'scan' && scanModal.isOpen()) return;
 
+  const selectedEventId = $('#ev').value || null;
+  const selectedEvent = events.find(x => x.id === selectedEventId) || null;
+
+  let token = null;
   const m = String(raw).match(UUID);
-  if (!m) {
+  if (m) {
+    token = m[0].toLowerCase();
+  } else {
+    const cleaned = String(raw || '').trim().replace(/^eventsync:/i, '').replace(/[\s-]+/g, '').toLowerCase();
+    if (/^[0-9a-f]{8}$/.test(cleaned) && navigator.onLine) {
+      const { data: matches } = await supabase
+        .from('registrations')
+        .select('qr_token,event_id')
+        .gte('qr_token', `${cleaned}-0000-0000-0000-000000000000`)
+        .lte('qr_token', `${cleaned}-ffff-ffff-ffff-ffffffffffff`);
+      if (matches?.length) {
+        const preferred = (selectedEventId && matches.find(r => r.event_id === selectedEventId)) || matches[0];
+        token = preferred.qr_token;
+      }
+    }
+  }
+
+  if (!token) {
     const res = { status: 'invalid', code: 'INVALID_QR', message: 'This code is not an EventSync pass.' };
     appendRecent(res);
     return;
   }
-  const token = m[0].toLowerCase();
   if (busy || (mode === 'scan' && token === last.t && scanMode === last.dir && Date.now() - last.at < SCAN_MODAL_CONFIG.debounceMs)) return;
   busy = true; last = { t: token, dir: scanMode, at: Date.now() };
-  const selectedEventId = $('#ev').value || null;
-  const selectedEvent = events.find(x => x.id === selectedEventId) || null;
   const queueItem = () => ({
     scan_id: crypto.randomUUID(),
     qr_token: token,

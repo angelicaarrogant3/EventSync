@@ -1,5 +1,5 @@
 import QRCode from 'https://esm.sh/qrcode@1.5.3';
-import { esc, fmt } from '/js/core/ui.js';
+import { esc, fmt, toast } from '/js/core/ui.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
 
@@ -8,6 +8,11 @@ export async function qrDataUrl(token, width = 320) {
   const k = token + width;
   if (!cache.has(k)) cache.set(k, await QRCode.toDataURL('EVENTSYNC:' + token, { width, margin: 2, errorCorrectionLevel: 'M' }));
   return cache.get(k);
+}
+
+/** Short 8-character uppercase pass code derived from the registration UUID. */
+export function shortPassCode(token) {
+  return String(token || '').replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
 /** Opens a modal with the participant's QR + details and a Download PNG button. */
@@ -19,6 +24,7 @@ export async function openQrModal({ token, title, startsAt, venue, name, schoolI
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
   }
   const img = await qrDataUrl(token, 320);
+  const shortCode = shortPassCode(token);
   const banner = eventBannerHtml({ title, image_path: imagePath, image_updated_at: imageUpdatedAt }, { variant: 'ticket' });
   dlg.innerHTML = `
     <div class="ticket-head">
@@ -29,12 +35,28 @@ export async function openQrModal({ token, title, startsAt, venue, name, schoolI
     <h2>${esc(title)}</h2>
     <p class="muted sm">${ICONS.clock(14)} ${fmt(startsAt)}<br>${ICONS.pin(14)} ${esc(venue)}<br>${ICONS.user(14)} <b>${esc(name)}</b>${schoolId ? `<br><span class="ticket-id">ID: ${esc(schoolId)}${course ? ` · ${esc(course)}` : ''}</span>` : ''}</p>
     <div class="qrbox"><div class="qr-frame"><img alt="Your QR code" src="${img}"></div></div>
-    <p class="muted sm">Show this code at the entrance.</p>
+    <div class="row" style="justify-content:center;gap:.45rem;margin:.35rem 0 .25rem">
+      <span class="muted sm">Code:</span>
+      <code id="qrShortCode" style="font-size:1rem;font-weight:700;letter-spacing:.08em;padding:.2rem .55rem;border-radius:6px;background:rgba(255,255,255,.08);user-select:all">${esc(shortCode)}</code>
+      <button type="button" class="btn ghost sm" id="qrCopy" style="padding:.2rem .55rem;font-size:.78rem">Copy</button>
+    </div>
+    <p class="muted sm" style="margin:.2rem 0 0">Show this QR or 8-character code at the entrance.</p>
     <div class="row" style="justify-content:center;margin-top:.85rem">
       <button class="btn" id="qrDl">${ICONS.download(16)} Download PNG</button>
       <button class="btn ghost" id="qrClose">Close</button>
     </div>`;
   dlg.querySelector('#qrClose').onclick = () => dlg.close();
+  dlg.querySelector('#qrCopy').onclick = async e => {
+    const btn = e.currentTarget;
+    try {
+      await navigator.clipboard.writeText(shortCode);
+      btn.textContent = 'Copied!';
+      toast('Pass code copied', 'success');
+      setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy'; }, 1800);
+    } catch {
+      toast(shortCode, 'info');
+    }
+  };
   dlg.querySelector('#qrDl').onclick = async () => {
     const big = await qrDataUrl(token, 800);
     const a = document.createElement('a'); a.href = big;
