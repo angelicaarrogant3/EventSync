@@ -85,10 +85,9 @@ function eventStateLabel(e) {
 
 function updateBanner() {
   const ev = events.find(x => x.id === $('#ev').value);
-  const chip = $('#testChip'), ban = $('#scanBanner');
-  if (!ev) { chip.hidden = true; ban.hidden = true; return; }
+  const ban = $('#scanBanner');
+  if (!ev) { ban.hidden = true; return; }
   const ws = getAttendanceState(ev);
-  chip.hidden = !ev.allow_early_test_attendance;
   if (ev.allow_early_test_attendance) {
     ban.className = 'scan-banner test';
     ban.innerHTML = `${ICONS.alert(16)} <b>TEST MODE ON:</b> Attendance outside schedule is allowed and flagged as <code>is_test</code>.`;
@@ -311,9 +310,6 @@ function setMode(next) {
   $('#modeOut').classList.toggle('active', scanMode === 'OUT');
   $('#modeIn').setAttribute('aria-pressed', String(scanMode === 'IN'));
   $('#modeOut').setAttribute('aria-pressed', String(scanMode === 'OUT'));
-  const badge = $('#modeBadge');
-  badge.textContent = `Mode: TIME ${scanMode}`;
-  badge.className = `badge ${scanMode === 'OUT' ? 'mode-pill-out' : 'mode-pill-in'}`;
 }
 $('#modeIn').onclick = () => { unlockAudio(); setMode('IN'); };
 $('#modeOut').onclick = () => { unlockAudio(); setMode('OUT'); };

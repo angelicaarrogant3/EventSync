@@ -22,9 +22,7 @@ async function loadEvents() {
 
 async function load() {
   const id = $('#ev').value;
-  const incTest = $('#incTest').checked;
-  const sel = evList.find(e => e.id === id);
-  $('#testChip').hidden = !(sel?.allow_early_test_attendance);
+  const incTest = false;
 
   let rq = supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('status', 'registered');
   let aq = supabase.from('attendance').select('id,checked_in_at,check_out_time,is_test,profiles!attendance_user_id_fkey(full_name),events(title,starts_at,late_after_minutes)').eq('voided', false).order('checked_in_at', { ascending: false }).limit(50);
@@ -45,6 +43,5 @@ async function load() {
   a.data.forEach(x => seen.add(x.id)); first = false;
 }
 $('#ev').onchange = () => { seen = new Set(); first = true; load(); };
-$('#incTest').onchange = load;
 await loadEvents(); await load();
 watch(['attendance', 'registrations', 'events'], () => { loadEvents(); load(); });
