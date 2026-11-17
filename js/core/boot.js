@@ -1,5 +1,5 @@
 import { supabase, configMissing } from '/js/core/supabase.js';
-import { startNetworkMonitor, esc, toast, errMsg, initPasswordEyes } from '/js/core/ui.js';
+import { startNetworkMonitor, esc, toast, errMsg, initPasswordEyes, watch } from '/js/core/ui.js';
 import { passwordIssues } from '/js/shared/validation.js';
 import { ICONS } from '/js/shared/icons.js';
 
@@ -77,7 +77,62 @@ export async function boot(role, active) {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) setMenu(false); });
   startNetworkMonitor();
   if (profile.must_change_password) await enforcePasswordChange();
+  if (role === 'user') initFeedbackBanner();
   return { profile };
+}
+
+function initFeedbackBanner() {
+  const KEY = 'eventsync_fb_dismissed';
+  const getDismissed = () => { try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { return new Set(); } };
+  const saveDismissed = set => { try { localStorage.setItem(KEY, JSON.stringify([...set])); } catch {} };
+  let timer = null;
+
+  const check = async () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    const { data, error } = await supabase.rpc('my_registrations');
+    if (error || !Array.isArray(data)) return;
+
+    const dismissed = getDismissed();
+    const pending = data.filter(r => r.feedback?.available && !dismissed.has(r.event_id));
+    let bar = document.getElementById('fbPortalBanner');
+    if (!pending.length) {
+      bar?.remove();
+    } else {
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'fbPortalBanner';
+        bar.className = 'legacy-banner';
+        bar.setAttribute('role', 'status');
+        const main = document.querySelector('main.container') || document.querySelector('main');
+        main?.prepend(bar);
+      }
+      const n = pending.length;
+      bar.innerHTML = `
+        <div><b>You have ${n} event${n === 1 ? '' : 's'} waiting for your feedback</b></div>
+        <div class="row">
+          <a class="btn sm" href="/user/registrations">Give feedback</a>
+          <button type="button" class="btn sm ghost" id="fbDismiss">Dismiss</button>
+        </div>`;
+      bar.querySelector('#fbDismiss').onclick = () => {
+        const d = getDismissed();
+        pending.forEach(r => d.add(r.event_id));
+        saveDismissed(d);
+        bar.remove();
+      };
+    }
+
+    const now = Date.now();
+    const nextEnd = data
+      .filter(r => r.status === 'registered' && r.events?.ends_at)
+      .map(r => new Date(r.events.ends_at).getTime())
+      .filter(t => t > now)
+      .sort((a, b) => a - b)[0];
+    if (nextEnd) timer = setTimeout(check, Math.min(nextEnd - now + 1000, 2_147_483_000));
+  };
+
+  check();
+  watch(['events', 'attendance', 'registrations'], check);
+  window.addEventListener('focus', check);
 }
 
 async function enforcePasswordChange() {

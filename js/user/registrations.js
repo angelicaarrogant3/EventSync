@@ -8,14 +8,27 @@ import { formatProgramShort } from '/js/shared/participant-options.js';
 import { getAttendanceState, isLateCheckIn } from '/config/schedule.js';
 
 const { profile } = await boot('user', 'registrations');
-let rows = [];
+let rows = [], endTimer = null;
+
+function scheduleEndRecheck() {
+  if (endTimer) { clearTimeout(endTimer); endTimer = null; }
+  const now = Date.now();
+  const nextEnd = rows
+    .filter(r => r.status === 'registered' && r.events?.ends_at)
+    .map(r => new Date(r.events.ends_at).getTime())
+    .filter(t => t > now)
+    .sort((a, b) => a - b)[0];
+  if (nextEnd) {
+    endTimer = setTimeout(load, Math.min(nextEnd - now + 1000, 2_147_483_000));
+  }
+}
 
 async function load() {
-  const { data, error } = await supabase.from('registrations')
-    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,early_grace_minutes,late_grace_minutes,late_after_minutes,status,image_path,image_updated_at),attendance(checked_in_at,check_out_time,voided,is_test)')
-    .order('registered_at', { ascending: false });
+  const { data, error } = await supabase.rpc('my_registrations');
   if (error) return toast(errMsg(error), 'error');
-  rows = data; render();
+  rows = Array.isArray(data) ? data : [];
+  render();
+  scheduleEndRecheck();
 }
 
 function render() {
@@ -37,6 +50,20 @@ function render() {
     const timesLine = att
       ? `<p class="muted sm" style="margin:.25rem 0 0">Time in ${fmtTime(att.checked_in_at)}${att.check_out_time ? ` · Time out ${fmtTime(att.check_out_time)}` : ''}</p>`
       : '';
+
+    const fb = r.feedback || {};
+    let fbBlock = '';
+    if (fb.available && fb.url) {
+      fbBlock = `<div style="margin-top:.75rem">
+        <a class="btn fb-btn" href="${esc(fb.url)}" target="_blank" rel="noopener noreferrer">Give feedback</a>
+        <p class="muted sm" style="margin:.3rem 0 0">This opens a Google Form in a new tab.</p>
+      </div>`;
+    } else if (fb.reason === 'not_ended') {
+      fbBlock = '<p class="muted sm" style="margin:.55rem 0 0">Feedback opens after the event.</p>';
+    } else if (fb.reason === 'attended_only') {
+      fbBlock = '<p class="muted sm" style="margin:.55rem 0 0">Feedback is for people who attended.</p>';
+    }
+
     return `<div class="card hoverable fade-in">
       <div class="evt-reg-head">
         ${eventBannerHtml(r.events || { title: 'Event' }, { variant: 'reg' })}
@@ -51,7 +78,8 @@ function render() {
         ${r.status === 'registered' ? `<button class="btn" data-qr="${r.id}">${ICONS.qr(16)} View QR</button>` : ''}
         ${r.status === 'registered' && !att ? `<button class="btn ghost" data-cancel="${r.id}" ${canCancel ? '' : 'disabled title="Cancellation closes when the event starts"'}>Cancel</button>` : ''}
       </div>
-      ${r.status === 'registered' && !att && started ? '<p class="muted sm" style="margin:.4rem 0 0">Event started - cancellation is closed.</p>' : ''}</div>`;
+      ${r.status === 'registered' && !att && started ? '<p class="muted sm" style="margin:.4rem 0 0">Event started - cancellation is closed.</p>' : ''}
+      ${fbBlock}</div>`;
   }).join('');
 }
 
@@ -74,4 +102,5 @@ $('#list').onclick = async e => {
 };
 
 await load();
-watch(['registrations', 'attendance', 'events'], load);   // badge flips to "Attended" live
+watch(['registrations', 'attendance', 'events'], load);
+window.addEventListener('focus', load);

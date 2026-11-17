@@ -471,6 +471,8 @@ dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}
 .prog-opt:hover,.prog-opt:focus-visible{background:rgba(229,9,20,.16);outline:none}
 .prog-empty{padding:.65rem;color:var(--text-muted);font-size:.88rem;text-align:center}
 .legacy-banner{background:rgba(229,9,20,.12);border:1px solid rgba(229,9,20,.45);border-radius:14px;padding:.85rem 1rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.65rem}
+.fb-btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+@media (max-width:600px){.fb-btn{width:100%}}
 
 @page{size:A4 landscape;margin:0}
 @media print{
