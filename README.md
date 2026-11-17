@@ -83,6 +83,7 @@ Migration `supabase/migrations/007_event_images.sql` adds two nullable columns t
 - **Security:** Storage RLS (`storage.objects`) restricts `INSERT`/`UPDATE`/`DELETE` to `public.is_admin()` (`403` for participants, `401` for anonymous). Client and bucket validate real file types by magic bytes (JPEG/PNG/WebP only; SVG/GIF and renamed text files are rejected) and block path traversal.
 - **Lifecycle & logs:** Replacing an image deletes the old object; permanently deleting an event deletes its object; archiving (`closed`) keeps it. Uploads, replacements, and removals are logged in `public.activity_logs` and broadcast live via Supabase Realtime (`events`).
 - **Offline / missing fallback:** If an event has no image or the image fails to load, cards, details, registrations, QR tickets, and the landing page fall back to a dark + crimson placeholder with the EventSync logo and event initials (no broken image icons). Reports, Excel/CSV exports, and the scanner page intentionally omit images.
+- **Printing / PDF Export:** Printouts (`Ctrl+P` or **Export PDF**) hide all site navigation and chrome, using A4 landscape light formatting. If a browser still shows URL/date headers and footers in the print preview, untick **Headers and footers** in the print dialog.
 
 ### User Manual: Adding an Event Image
 1. Sign in as an **Administrator** and open **Events** (`/admin/events`).

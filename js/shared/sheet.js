@@ -185,14 +185,15 @@ export function summaryWorkbook(ExcelJS, m) {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export function renderPrintHtml(m) {
   return `<div class="sheet">
-    <div class="print-brand"><img src="/assets/logo.png" alt="EventSync logo" width="48" height="32"><b>EventSync</b></div>
-    <h1 class="sheet-title">${esc(m.title)}</h1>
+    <div class="sheet-top"><img class="sheet-logo" src="/assets/logo.png" alt="ES logo" width="38" height="25"><h1 class="sheet-title">${esc(m.title)}</h1></div>
     <table class="sheet-head">${m.header.map(([k, v]) => `<tr><th>${esc(k)}:</th><td>${esc(v)}</td></tr>`).join('')}</table>
     <table class="sheet-table"><thead><tr>${m.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
       <tbody>${m.rows.map(r => `<tr>${r.map((v, i) => `<td class="${[0, 5, 6, 7].includes(i) ? 'c' : ''}">${esc(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${m.columns.length}" class="c">No attendees</td></tr>`}</tbody></table>
-    <div class="sheet-totals">${m.totals.map(([k, v]) => `<div><b>${esc(k)}:</b> ${esc(v)}</div>`).join('')}</div>
-    ${m.schoolBreakdown?.length ? `<h3 style="margin:.9rem 0 .4rem;font-size:.95rem">Attendance by School / Office</h3>
-      <table class="sheet-table"><thead><tr><th>School / Office</th><th>Registered</th><th>Present</th><th>Absent</th></tr></thead>
-      <tbody>${m.schoolBreakdown.map(([sc, reg, pres, abs]) => `<tr><td>${esc(sc)}</td><td class="c">${reg}</td><td class="c">${pres}</td><td class="c">${abs}</td></tr>`).join('')}</tbody></table>` : ''}
-    <div class="sheet-sign"><span>${esc(m.signatures[0])}</span><span>${esc(m.signatures[1])}</span></div></div>`;
+    <div class="sheet-closing">
+      <div class="sheet-totals">${m.totals.map(([k, v]) => `<div><b>${esc(k)}:</b> ${esc(v)}</div>`).join('')}</div>
+      ${m.schoolBreakdown?.length ? `<h3 style="margin:.9rem 0 .4rem;font-size:.95rem">Attendance by School / Office</h3>
+        <table class="sheet-table"><thead><tr><th>School / Office</th><th>Registered</th><th>Present</th><th>Absent</th></tr></thead>
+        <tbody>${m.schoolBreakdown.map(([sc, reg, pres, abs]) => `<tr><td>${esc(sc)}</td><td class="c">${reg}</td><td class="c">${pres}</td><td class="c">${abs}</td></tr>`).join('')}</tbody></table>` : ''}
+      <div class="sheet-sign"><span>${esc(m.signatures[0])}</span><span>${esc(m.signatures[1])}</span></div>
+    </div></div>`;
 }

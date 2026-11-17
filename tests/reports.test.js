@@ -158,3 +158,17 @@ test('DB attendance_sheet: totals match registered/present/absent, Present-only 
   await assert.rejects(as(users[0], "select public.attendance_sheet($1, 'all', 'xlsx')", [ev]), /Only administrators/);
   await c.query('rollback to savepoint s');
 });
+
+test('print stylesheet hides nav/chrome and printable sheet header contains event name without website text', async () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'css', 'theme.css'), 'utf8');
+  assert.match(css, /@page\s*\{\s*size:\s*A4 landscape;\s*margin:\s*0\s*\}/);
+  assert.match(css, /@media print[\s\S]*\.topbar[\s\S]*display:\s*none!important/);
+  assert.match(css, /print-color-adjust:\s*exact/);
+
+  const { buildSheetModel, renderPrintHtml } = await load();
+  const html = renderPrintHtml(buildSheetModel(sampleData()));
+  assert.ok(html.includes('EVENT ATTENDANCE SHEET'));
+  assert.ok(html.includes('Laag, Annual Meetup'));
+  assert.equal(html.includes('EventSync'), false);
+});
