@@ -51,7 +51,12 @@ function render() {
 
 async function load() {
   const [ev, rg] = await Promise.all([
-    supabase.from('events').select('*').eq('status', 'published').gte('ends_at', new Date().toISOString()).order('starts_at'),
+    supabase
+      .from('events')
+      .select('id,title,description,venue,starts_at,ends_at,registration_opens_at,registration_deadline,early_grace_minutes,late_grace_minutes,late_after_minutes,allow_early_test_attendance,capacity,registered_count,status,image_path,image_updated_at')
+      .eq('status', 'published')
+      .gte('ends_at', new Date().toISOString())
+      .order('starts_at'),
     supabase.from('registrations').select('id,event_id,status,qr_token,attendance(checked_in_at,voided,is_test)')
   ]);
   if (ev.error) return toast(errMsg(ev.error), 'error');
