@@ -314,8 +314,11 @@ dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}
 #reader{width:100%}
 .result{border-radius:var(--r);padding:1.15rem;margin-top:1rem;text-align:center;font-weight:600;border:2px solid transparent}
 .result.ok{background:rgba(34,197,94,.16);border-color:var(--success);color:#86efac}
-.result.duplicate{background:rgba(245,158,11,.16);border-color:var(--warning);color:#fde68a}
-.result.invalid,.result.cancelled,.result.error{background:rgba(255,77,94,.2);border-color:var(--danger);color:#fecdd3}
+.result.duplicate,.result.not_started,.result.queued{background:rgba(245,158,11,.18);border-color:var(--warning);color:#fde68a}
+.result.invalid,.result.cancelled,.result.error,.result.ended,.result.wrong_event{background:rgba(255,77,94,.2);border-color:var(--danger);color:#fecdd3}
+.scan-banner{border-radius:12px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.9rem;border:1px solid var(--border-strong);background:var(--surface-2)}
+.scan-banner.warn{background:rgba(245,158,11,.14);border-color:var(--warning);color:#fde68a}
+.scan-banner.test{background:rgba(229,9,20,.14);border-color:#ef4444;color:#fecaca}
 .result big{display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:1.3rem;color:#fff;margin-bottom:.35rem}
 
 /* ---- Auth Pages ---- */
