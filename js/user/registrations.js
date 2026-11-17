@@ -5,14 +5,14 @@ import { openQrModal } from '/js/user/qr-modal.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
 import { formatProgramShort } from '/js/shared/participant-options.js';
-import { getAttendanceState } from '/config/schedule.js';
+import { getAttendanceState, isLateCheckIn } from '/config/schedule.js';
 
 const { profile } = await boot('user', 'registrations');
 let rows = [];
 
 async function load() {
   const { data, error } = await supabase.from('registrations')
-    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,early_grace_minutes,late_grace_minutes,status,image_path,image_updated_at),attendance(checked_in_at,voided,is_test)')
+    .select('id,status,qr_token,registered_at,events(title,venue,starts_at,ends_at,early_grace_minutes,late_grace_minutes,late_after_minutes,status,image_path,image_updated_at),attendance(checked_in_at,voided,is_test)')
     .order('registered_at', { ascending: false });
   if (error) return toast(errMsg(error), 'error');
   rows = data; render();
@@ -25,10 +25,11 @@ function render() {
     const att = rawAtt && !rawAtt.voided && !rawAtt.is_test ? rawAtt : null;
     const started = r.events && new Date(r.events.starts_at) <= new Date();
     const ended = r.events && getAttendanceState(r.events).state === 'ENDED';
+    const late = att && isLateCheckIn(r.events, att.checked_in_at);
     const label = r.status === 'cancelled'
       ? ['cancelled', 'Cancelled']
       : att
-        ? ['ok', `Attended · ${fmt(att.checked_in_at)}`]
+        ? [late ? 'dup' : 'ok', `${late ? 'Present (Late)' : 'Attended'} · ${fmt(att.checked_in_at)}`]
         : ended
           ? ['cancelled', 'Absent']
           : ['registered', 'Pending'];

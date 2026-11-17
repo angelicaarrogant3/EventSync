@@ -161,3 +161,36 @@ test('server-side attendance & registration windows + offline sync + test mode (
   const cleared = (await as(adminId, 'select public.admin_clear_test_attendance($1) c', [evId]))[0].c;
   assert.equal(cleared, 1);
 });
+
+test('Late label: on time, exactly at limit, late, disabled, offline sync, and report totals', { skip }, async () => {
+  const { isLateCheckIn, parseManilaInput } = await loadSched();
+  const startsAt = parseManilaInput('2026-11-25T08:00');
+  const endsAt = parseManilaInput('2026-11-25T17:00');
+  const ev = { starts_at: startsAt, late_after_minutes: 15 };
+
+  // Unit checks: on time, exactly at 15 min limit (not late), 16 min (late), disabled (0 / null)
+  assert.equal(isLateCheckIn(ev, parseManilaInput('2026-11-25T08:10')), false);
+  assert.equal(isLateCheckIn(ev, parseManilaInput('2026-11-25T08:15')), false);
+  assert.equal(isLateCheckIn(ev, parseManilaInput('2026-11-25T08:16')), true);
+  assert.equal(isLateCheckIn({ starts_at: startsAt, late_after_minutes: 0 }, parseManilaInput('2026-11-25T09:00')), false);
+  assert.equal(isLateCheckIn({ starts_at: startsAt, late_after_minutes: null }, parseManilaInput('2026-11-25T09:00')), false);
+
+  // DB + offline sync check: scan made at 08:20 (late) synced at 16:00 -> Present (Late), counts as Present
+  const evId = (await c.query(
+    `insert into public.events(title,venue,starts_at,ends_at,late_after_minutes,status)
+     values ('Late Test Event','Hall A',$1,$2,15,'published') returning id`,
+    [startsAt, endsAt]
+  )).rows[0].id;
+  const reg = (await as(userId, 'select public.register_for_event($1, $2) r', [evId, parseManilaInput('2026-11-20T10:00')]))[0].r;
+
+  const syncRes = (await as(adminId, 'select public.sync_offline_attendance($1::jsonb, $2) r', [
+    JSON.stringify([{ qr_token: reg.qr_token, event_id: evId, scanned_at: parseManilaInput('2026-11-25T08:20') }]),
+    parseManilaInput('2026-11-25T16:00')
+  ]))[0].r;
+  assert.equal(syncRes[0].status, 'ok');
+
+  const sheet = (await as(adminId, "select public.attendance_sheet($1, 'all', null, false, $2) r", [evId, parseManilaInput('2026-11-25T16:00')]))[0].r;
+  assert.equal(sheet.totals.present, 1);
+  assert.equal(sheet.totals.late, 1);
+  assert.equal(sheet.rows[0].status_label, 'Present (Late)');
+});

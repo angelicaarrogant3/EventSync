@@ -6,7 +6,7 @@ import {
   uploadEventImage, removeEventImage, deleteEventStorageFile
 } from '/js/shared/event-images.js';
 import {
-  DEFAULT_EARLY_GRACE_MINUTES, DEFAULT_LATE_GRACE_MINUTES,
+  DEFAULT_EARLY_GRACE_MINUTES, DEFAULT_LATE_GRACE_MINUTES, DEFAULT_LATE_AFTER_MINUTES,
   parseManilaInput, toManilaInput, getAttendanceState, getDerivedEventStatus, formatManila
 } from '/config/schedule.js';
 
@@ -131,6 +131,7 @@ function openForm(e) {
   $('#deadline').value = toManilaInput(e?.registration_deadline);
   $('#earlyGrace').value = e?.early_grace_minutes ?? DEFAULT_EARLY_GRACE_MINUTES;
   $('#lateGrace').value = e?.late_grace_minutes ?? DEFAULT_LATE_GRACE_MINUTES;
+  $('#lateAfter').value = e ? (e.late_after_minutes ?? '') : DEFAULT_LATE_AFTER_MINUTES;
   $('#cap').value = e?.capacity ?? '';
   $('#status').value = e?.status || 'draft';
   $('#testMode').checked = !!e?.allow_early_test_attendance;
@@ -237,6 +238,7 @@ $('#form').onsubmit = async ev => {
     registration_deadline: parseManilaInput($('#deadline').value),
     early_grace_minutes: Math.max(0, Math.min(1440, parseInt($('#earlyGrace').value || '60', 10))),
     late_grace_minutes: Math.max(0, Math.min(1440, parseInt($('#lateGrace').value || '60', 10))),
+    late_after_minutes: $('#lateAfter').value.trim() === '' ? null : Math.max(0, Math.min(1440, parseInt($('#lateAfter').value, 10))),
     capacity: $('#cap').value ? parseInt($('#cap').value, 10) : null,
     status: $('#status').value,
     allow_early_test_attendance: $('#testMode').checked

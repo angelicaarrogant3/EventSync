@@ -1,6 +1,7 @@
 // Attendance-sheet model + CSV / Excel generators. Pure (no DOM, no network) so it can be unit-tested in Node.
 // The data comes from the admin-only RPC attendance_sheet(); totals are computed by the database.
 import { formatProgramShort } from '../../config/programs.js';
+import { isLateCheckIn } from '../../config/schedule.js';
 
 export const TZ = 'Asia/Manila';
 export const COLUMNS = ['No.', 'Full Name', 'School ID', 'Program (Major) / Year', 'Role', 'Time In', 'Attendance'];
@@ -35,9 +36,11 @@ export function buildSheetModel(data, generatedAt = new Date()) {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([sc, v]) => [sc, v.reg, v.pres, v.abs]);
 
+  const lateCount = t.late ?? data.rows.filter(r => r.present && (r.is_late || isLateCheckIn(ev, r.time_in))).length;
   const totals = [
     ['Total Registered', t.registered],
     ['Total Present', t.present],
+    ['Total Late', lateCount],
     ['Total Absent', isEnded ? t.absent : 0]
   ];
   if (!isEnded && (t.pending ?? (t.registered - t.present)) > 0) {
@@ -48,7 +51,8 @@ export function buildSheetModel(data, generatedAt = new Date()) {
   return {
     title: 'EVENT ATTENDANCE SHEET', header, columns: COLUMNS,
     rows: data.rows.map((r, i) => {
-      const baseStatus = r.status_label || (r.present ? 'Present' : (isEnded ? 'Absent' : 'Pending'));
+      const late = r.present && (r.is_late || isLateCheckIn(ev, r.time_in));
+      const baseStatus = r.status_label || (r.present ? (late ? 'Present (Late)' : 'Present') : (isEnded ? 'Absent' : 'Pending'));
       const status = r.present && r.is_test ? `${baseStatus} (Test)` : baseStatus;
       return [i + 1, r.full_name, r.school_id || '-', formatProgramShort(r), ROLE[r.member_type] || '-', r.present ? fmtTime(r.time_in) : '-', status];
     }),

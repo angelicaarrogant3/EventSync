@@ -41,7 +41,7 @@ test('sheet model: Asia/Manila dates, no status in header, 0% on zero registrati
   assert.equal(m.rows[1][5], '-');
   assert.equal(m.rows[1][6], 'Absent');
   assert.deepEqual(m.totals, [
-    ['Total Registered', 2], ['Total Present', 1], ['Total Absent', 1], ['Attendance Rate', '50%']
+    ['Total Registered', 2], ['Total Present', 1], ['Total Late', 0], ['Total Absent', 1], ['Attendance Rate', '50%']
   ]);
 
   const empty = buildSheetModel(sampleData({ rows: [], totals: { registered: 0, present: 0, absent: 0 } }));
@@ -124,7 +124,7 @@ test('DB attendance_sheet: totals match registered/present/absent, Present-only 
   // zero-registration event
   const empty = (await as(adminId, "select public.attendance_sheet($1, 'all', null) d", [ev]))[0].d;
   assert.equal(empty.rows.length, 0);
-  assert.deepEqual(empty.totals, { registered: 0, present: 0, absent: 0, pending: 0 });
+  assert.deepEqual(empty.totals, { registered: 0, present: 0, late: 0, absent: 0, pending: 0 });
 
   // register 2 users, check in 1 (inside 60m grace window)
   const r1 = (await as(users[0], 'select public.register_for_event($1) r', [ev]))[0].r;
@@ -134,16 +134,16 @@ test('DB attendance_sheet: totals match registered/present/absent, Present-only 
   // While ongoing, un-checked-in person is Pending (not Absent)
   const all = (await as(adminId, "select public.attendance_sheet($1, 'all', 'xlsx') d", [ev]))[0].d;
   assert.equal(all.rows.length, all.totals.registered);
-  assert.deepEqual(all.totals, { registered: 2, present: 1, absent: 0, pending: 1 });
+  assert.deepEqual(all.totals, { registered: 2, present: 1, late: 0, absent: 0, pending: 1 });
 
   // After event ends, un-checked-in person is Absent
   const ended = (await as(adminId, "select public.attendance_sheet($1, 'all', null, false, now()+interval '4 hours') d", [ev]))[0].d;
-  assert.deepEqual(ended.totals, { registered: 2, present: 1, absent: 1, pending: 0 });
+  assert.deepEqual(ended.totals, { registered: 2, present: 1, late: 0, absent: 1, pending: 0 });
 
   const presentOnly = (await as(adminId, "select public.attendance_sheet($1, 'present', 'csv', false, now()+interval '4 hours') d", [ev]))[0].d;
   assert.equal(presentOnly.rows.length, 1);
   assert.equal(presentOnly.rows[0].present, true);
-  assert.deepEqual(presentOnly.totals, { registered: 2, present: 1, absent: 1, pending: 0 });
+  assert.deepEqual(presentOnly.totals, { registered: 2, present: 1, late: 0, absent: 1, pending: 0 });
 
   // exports were logged
   const logs = (await c.query("select details from public.activity_logs where action='report.exported' and entity_id=$1 order by id", [ev])).rows;

@@ -4,6 +4,7 @@
 export const EVENT_TZ = 'Asia/Manila';
 export const DEFAULT_EARLY_GRACE_MINUTES = 60;
 export const DEFAULT_LATE_GRACE_MINUTES = 60;
+export const DEFAULT_LATE_AFTER_MINUTES = 15;
 
 const cleanSpaces = s => String(s ?? '').replace(/[\u202f\u00a0]/g, ' ');
 
@@ -119,4 +120,18 @@ export function getDerivedEventStatus(event, now = new Date()) {
   const reg = getRegistrationState(event, now);
   if (reg.open) return { code: 'published', label: 'Registration open' };
   return { code: 'registered', label: 'Upcoming' };
+}
+
+/**
+ * Pure Late check: true iff late_after_minutes > 0 and checkedInAt is strictly
+ * more than late_after_minutes after event.starts_at. Computed from stored time-in.
+ */
+export function isLateCheckIn(event, checkedInAt) {
+  if (!event || !checkedInAt || !event.starts_at) return false;
+  const raw = event.late_after_minutes;
+  if (raw === null || raw === undefined || raw === '') return false;
+  const mins = Number(raw);
+  if (!Number.isFinite(mins) || mins <= 0) return false;
+  const limitMs = new Date(event.starts_at).getTime() + mins * 60_000;
+  return new Date(checkedInAt).getTime() > limitMs;
 }
