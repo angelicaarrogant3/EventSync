@@ -28,6 +28,12 @@ export const ALLOWED_FIELD_DEFS = [
   { type: 'qr_code', label: 'Verification QR (Required)', mandatory: true }
 ];
 
+export const SIMPLE_UPLOAD_LAYOUT = [
+  { type: 'participant_name', x: 300, y: 620, width: 1400, height: 100, font: 'script', size: 68, color: '#991b1b', alignment: 'center', auto_shrink: true },
+  { type: 'certificate_id', x: 1560, y: 1320, width: 380, height: 34, font: 'mono', size: 18, color: '#44403c', alignment: 'center', auto_shrink: true },
+  { type: 'qr_code', x: 1680, y: 1145, width: 165, height: 165, font: 'sans', size: 16, color: '#000000', alignment: 'center', auto_shrink: false }
+];
+
 export const DEFAULT_LAYOUT = [
   { type: 'participant_name', x: 250, y: 500, width: 1500, height: 90, font: 'serif', size: 62, color: '#991b1b', alignment: 'center', auto_shrink: true },
   { type: 'program', x: 350, y: 610, width: 1300, height: 42, font: 'sans', size: 26, color: '#57534e', alignment: 'center', auto_shrink: true },
@@ -486,8 +492,22 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     height: 1414,
     is_global: profile.role === 'admin',
     is_active: true,
-    layout: structuredClone(DEFAULT_LAYOUT)
+    layout: structuredClone(SIMPLE_UPLOAD_LAYOUT)
   };
+  // Always keep coordinate space normalized to 2000x1414 so boxes never overflow on smaller images
+  if (tpl.width !== 2000 || tpl.height !== 1414) {
+    const sx = 2000 / (tpl.width || 2000);
+    const sy = 1414 / (tpl.height || 1414);
+    tpl.layout = (tpl.layout || []).map(f => ({
+      ...f,
+      x: Math.round((f.x || 0) * sx),
+      y: Math.round((f.y || 0) * sy),
+      width: Math.round((f.width || 400) * sx),
+      height: Math.round((f.height || 60) * sy)
+    }));
+    tpl.width = 2000;
+    tpl.height = 1414;
+  }
   let pendingFile = null;
   let bgPreviewUrl = null;
   let selectedIdx = 0;
@@ -505,7 +525,8 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
         <p class="muted sm" style="margin:.15rem 0 0">Upload a blank design (without participant details) and drag or resize the field boxes below. Certificate ID and QR code are required.</p>
       </div>
       <div class="row">
-        <button type="button" class="btn ghost sm" id="tplDlSample">Download blank sample design</button>
+        <button type="button" class="btn ghost sm" id="tplPresetSimple" title="Keep only Participant Name, QR, and Certificate ID">Simple (Name + QR only)</button>
+        <button type="button" class="btn ghost sm" id="tplDlSample">Download blank sample</button>
         <button type="button" class="btn ghost sm" id="tplToggleSample">Preview: Standard sample</button>
       </div>
     </div>
@@ -570,16 +591,19 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
 
   function renderBoxes() {
     const sample = useLongSample ? SAMPLE_DATA_LONG : SAMPLE_DATA_NORMAL;
+    const stageH = stageWrap.getBoundingClientRect().height || 420;
+    const fontScale = stageH / tpl.height;
     boxesLayer.innerHTML = tpl.layout.map((f, idx) => {
       const leftPct = (f.x / tpl.width) * 100;
       const topPct = (f.y / tpl.height) * 100;
       const wPct = (f.width / tpl.width) * 100;
       const hPct = (f.height / tpl.height) * 100;
       const isSel = idx === selectedIdx;
-      const txt = f.type === 'qr_code' ? '[QR CODE]' : (sample[f.type] || f.type);
-      return `<div data-box="${idx}" style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;border:2px ${isSel ? 'solid #ef4444' : 'dashed rgba(153,27,27,.65)'};background:${isSel ? 'rgba(239,68,68,.14)' : 'rgba(255,255,255,.45)'};color:${esc(f.color || '#1c1917')};display:flex;align-items:center;justify-content:${f.alignment === 'left' ? 'flex-start' : f.alignment === 'right' ? 'flex-end' : 'center'};padding:2px 6px;font-family:${cssFontFamily(f.font)};font-size:clamp(9px,1.1vw,15px);font-weight:700;cursor:move;box-sizing:border-box;overflow:hidden;white-space:nowrap">
+      const txt = f.type === 'qr_code' ? 'QR CODE' : (sample[f.type] || f.type);
+      const previewPx = Math.max(9, Math.round((Number(f.size) || 28) * fontScale));
+      return `<div data-box="${idx}" style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;border:2px ${isSel ? 'solid #ef4444' : 'dashed rgba(153,27,27,.55)'};background:${isSel ? 'rgba(239,68,68,.12)' : 'rgba(255,255,255,.28)'};color:${esc(f.color || '#1c1917')};display:flex;align-items:center;justify-content:${f.alignment === 'left' ? 'flex-start' : f.alignment === 'right' ? 'flex-end' : 'center'};padding:2px 6px;font-family:${cssFontFamily(f.font)};font-size:${previewPx}px;font-weight:700;cursor:move;box-sizing:border-box;overflow:hidden;white-space:nowrap;border-radius:4px">
         <span style="pointer-events:none;overflow:hidden;text-overflow:ellipsis">${esc(txt)}</span>
-        <span data-resize="${idx}" style="position:absolute;right:0;bottom:0;width:12px;height:12px;background:#ef4444;cursor:nwse-resize"></span>
+        <span data-resize="${idx}" title="Drag corner to resize" style="position:absolute;right:0;bottom:0;width:14px;height:14px;background:#ef4444;cursor:nwse-resize;border-top-left-radius:3px"></span>
       </div>`;
     }).join('');
     renderProps();
@@ -612,15 +636,20 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
         </div>
       </div>
       <label class="check" style="margin-top:.45rem"><input type="checkbox" id="pShrink" ${f.auto_shrink !== false ? 'checked' : ''}> <span>Auto-shrink to fit long text</span></label>
-      <button type="button" class="btn sm danger" id="pRemoveBox" style="margin-top:.6rem;width:100%" ${isMandatory ? 'disabled title="Required field cannot be removed"' : ''}>
+      <button type="button" class="btn sm ghost" id="pCenterBox" style="margin-top:.5rem;width:100%">Center horizontally</button>
+      <button type="button" class="btn sm danger" id="pRemoveBox" style="margin-top:.45rem;width:100%" ${isMandatory ? 'disabled title="Required field cannot be removed"' : ''}>
         ${isMandatory ? 'Required field (cannot delete)' : 'Remove field box'}
       </button>`;
 
     propPanel.querySelector('#pFont').onchange = e => { f.font = e.target.value; renderBoxes(); };
-    propPanel.querySelector('#pSize').oninput = e => { f.size = Number(e.target.value) || 28; };
+    propPanel.querySelector('#pSize').oninput = e => { f.size = Number(e.target.value) || 28; renderBoxes(); };
     propPanel.querySelector('#pColor').oninput = e => { f.color = e.target.value; renderBoxes(); };
     propPanel.querySelector('#pAlign').onchange = e => { f.alignment = e.target.value; renderBoxes(); };
     propPanel.querySelector('#pShrink').onchange = e => { f.auto_shrink = e.target.checked; };
+    propPanel.querySelector('#pCenterBox').onclick = () => {
+      f.x = Math.round((tpl.width - f.width) / 2);
+      renderBoxes();
+    };
     propPanel.querySelector('#pRemoveBox').onclick = () => {
       if (isMandatory) return;
       tpl.layout.splice(selectedIdx, 1);
@@ -685,6 +714,11 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     renderBoxes();
   };
 
+  dlg.querySelector('#tplPresetSimple').onclick = () => {
+    tpl.layout = structuredClone(SIMPLE_UPLOAD_LAYOUT);
+    selectedIdx = 0;
+    renderBoxes();
+  };
   dlg.querySelector('#tplDlSample').onclick = downloadBlankSampleDesign;
   dlg.querySelector('#tplToggleSample').onclick = e => {
     useLongSample = !useLongSample;
@@ -705,9 +739,14 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     }
     warnEl.textContent = v.warning || '';
     pendingFile = { file, ...v };
-    tpl.width = v.width;
-    tpl.height = v.height;
+    // Keep coordinate space at 2000x1414 so boxes never jump off-screen when uploading smaller images
+    tpl.width = 2000;
+    tpl.height = 1414;
     tpl.mime_type = v.mime;
+    if (tpl.layout.length > 3) {
+      tpl.layout = structuredClone(SIMPLE_UPLOAD_LAYOUT);
+      selectedIdx = 0;
+    }
     if (v.mime !== 'application/pdf') {
       if (bgPreviewUrl && bgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(bgPreviewUrl);
       bgPreviewUrl = URL.createObjectURL(file);
