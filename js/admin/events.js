@@ -10,11 +10,36 @@ import {
   parseManilaInput, toManilaInput, getAttendanceState, getDerivedEventStatus, formatManila
 } from '/config/schedule.js';
 import { validateFeedbackUrl } from '/config/feedback.js';
+import { PROGRAM_SCHOOLS, ADMIN_OFFICE_SCHOOL } from '/js/shared/participant-options.js';
 
 const { profile } = await boot('admin', 'events');
 let events = [], editingId = null, editingImagePath = null, editingOrig = null;
 let selectedFile = null, previewObjectUrl = null, pendingRemove = false;
 const dlg = $('#dlg');
+
+function initEligibilitySelectors() {
+  const scEl = $('#eligSchool'), prEl = $('#eligProgram');
+  if (!scEl || !prEl) return;
+  const schools = [...PROGRAM_SCHOOLS.map(s => s.name), ADMIN_OFFICE_SCHOOL.name];
+  scEl.innerHTML = '<option value="">All schools & offices</option>' +
+    schools.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  const syncPrograms = (keepVal = '') => {
+    const sc = scEl.value;
+    const src = sc ? PROGRAM_SCHOOLS.filter(s => s.name === sc) : PROGRAM_SCHOOLS;
+    const progs = [];
+    src.forEach(s => s.programs.forEach(p => { if (!progs.includes(p.name)) progs.push(p.name); }));
+    if (sc === ADMIN_OFFICE_SCHOOL.name) {
+      ADMIN_OFFICE_SCHOOL.programs.forEach(p => { if (!progs.includes(p.name)) progs.push(p.name); });
+    }
+    prEl.innerHTML = '<option value="">All programs</option>' +
+      progs.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    if (keepVal && progs.includes(keepVal)) prEl.value = keepVal;
+  };
+  scEl.onchange = () => syncPrograms('');
+  syncPrograms('');
+  scEl._syncPrograms = syncPrograms;
+}
+initEligibilitySelectors();
 
 const fmtBytes = n => n >= 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 
@@ -88,7 +113,7 @@ function updateScheduleHint() {
 async function load() {
   const { data, error } = await supabase.from('event_stats').select('*').order('starts_at', { ascending: false });
   if (error) { toast(errMsg(error), 'error'); return; }
-  events = data;
+  events = profile.role === 'organizer' ? (data || []).filter(e => e.created_by === profile.id) : (data || []);
   if (!events.length) { $('#list').innerHTML = '<div class="card empty">No events yet. Create your first one.</div>'; return; }
   $('#list').innerHTML = `<div class="tablewrap"><table><thead><tr><th>Title</th><th>When</th><th>Venue</th><th>Status</th><th>Reg / Cap</th><th>Attended</th><th></th></tr></thead><tbody>${events.map(e => {
     const dStatus = getDerivedEventStatus(e);
@@ -96,8 +121,9 @@ async function load() {
     const fbSet = !!(e.has_feedback_url || e.feedback_url);
     const endedNoFb = dStatus.label === 'Ended' && !fbSet && e.status !== 'cancelled';
     const canToggleEarly = fbSet && new Date(e.ends_at) > new Date() && e.status !== 'cancelled';
+    const hasElig = (e.allowed_schools?.length || e.allowed_programs?.length || e.allowed_year_levels?.length);
     return `<tr>
-      <td class="wrap" data-label="Title"><div class="evt-admin-title">${eventBannerHtml(e, { variant: 'thumb' })}<div><b>${esc(e.title)}</b>${e.allow_early_test_attendance ? ' <span class="badge dup">TEST MODE</span>' : ''}<br><span class="badge ${fbSet ? 'ok' : ''}" style="margin-top:.25rem">Feedback: ${fbSet ? 'set' : 'not set'}</span>${e.feedback_opened_early ? ' <span class="badge dup">Open early</span>' : ''}${endedNoFb ? '<br><small class="muted">This event ended. Add a feedback form link.</small>' : ''}</div></div></td>
+      <td class="wrap" data-label="Title"><div class="evt-admin-title">${eventBannerHtml(e, { variant: 'thumb' })}<div><b>${esc(e.title)}</b>${e.allow_early_test_attendance ? ' <span class="badge dup">TEST MODE</span>' : ''}<br><span class="badge ${fbSet ? 'ok' : ''}" style="margin-top:.25rem">Feedback: ${fbSet ? 'set' : 'not set'}</span>${hasElig ? ' <span class="badge" style="margin-top:.25rem">Restricted</span>' : ''}${e.feedback_opened_early ? ' <span class="badge dup">Open early</span>' : ''}${endedNoFb ? '<br><small class="muted">This event ended. Add a feedback form link.</small>' : ''}</div></div></td>
       <td data-label="When">${fmt(e.starts_at)}</td>
       <td data-label="Venue">${esc(e.venue)}</td>
       <td data-label="Status"><span class="badge ${e.status}">${e.status}</span> <span class="badge ${dStatus.code}">${dStatus.label}</span></td>
@@ -142,6 +168,14 @@ function openForm(e) {
   $('#testMode').checked = !!e?.allow_early_test_attendance;
   $('#fbUrl').value = e?.feedback_url || '';
   $('#fbAudience').value = e?.feedback_audience || 'attended';
+  if ($('#eligSchool')) {
+    $('#eligSchool').value = e?.allowed_schools?.[0] || '';
+    $('#eligSchool')._syncPrograms?.(e?.allowed_programs?.[0] || '');
+  }
+  const yrs = new Set((e?.allowed_year_levels || []).map(Number));
+  document.querySelectorAll('#eligYears input[type="checkbox"]').forEach(cb => {
+    cb.checked = yrs.has(Number(cb.value));
+  });
   updateScheduleHint();
   dlg.showModal();
 }
@@ -258,7 +292,13 @@ $('#form').onsubmit = async ev => {
     status: $('#status').value,
     allow_early_test_attendance: $('#testMode').checked,
     feedback_url: fbRes.url,
-    feedback_audience: $('#fbAudience').value || 'attended'
+    feedback_audience: $('#fbAudience').value || 'attended',
+    allowed_schools: $('#eligSchool')?.value ? [$('#eligSchool').value] : null,
+    allowed_programs: $('#eligProgram')?.value ? [$('#eligProgram').value] : null,
+    allowed_year_levels: (() => {
+      const checked = [...document.querySelectorAll('#eligYears input[type="checkbox"]:checked')].map(cb => Number(cb.value));
+      return checked.length ? checked : null;
+    })()
   };
   if (!row.starts_at || !row.ends_at || new Date(row.ends_at) <= new Date(row.starts_at)) {
     return toast('Event end must be after start', 'error');

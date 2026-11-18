@@ -4,15 +4,16 @@ import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import { mountParticipantForm } from '/js/shared/participant-form.js';
 import { formatProgramShort, formatProgramFull } from '/js/shared/participant-options.js';
 
-await boot('admin', 'registrations');
+const { profile } = await boot('admin', 'registrations');
 let rows = [];
 const form = mountParticipantForm($('#pfields'), { consentLabel: 'Participant consent obtained: their information will be used for event registration and attendance.' });
 
 async function loadEvents() {
-  const { data } = await supabase.from('events').select('id,title,status').order('starts_at', { ascending: false });
+  const { data } = await supabase.from('events').select('id,title,status,created_by').order('starts_at', { ascending: false });
+  const list = profile.role === 'organizer' ? (data || []).filter(e => e.created_by === profile.id) : (data || []);
   const cur = $('#ev').value, curP = $('#p_event').value;
-  $('#ev').innerHTML = '<option value="">All events</option>' + (data || []).map(e => `<option value="${e.id}">${esc(e.title)}</option>`).join('');
-  $('#p_event').innerHTML = '<option value="">— none —</option>' + (data || []).filter(e => e.status === 'published').map(e => `<option value="${e.id}">${esc(e.title)}</option>`).join('');
+  $('#ev').innerHTML = '<option value="">All events</option>' + list.map(e => `<option value="${e.id}">${esc(e.title)}</option>`).join('');
+  $('#p_event').innerHTML = '<option value="">— none —</option>' + list.filter(e => e.status === 'published').map(e => `<option value="${e.id}">${esc(e.title)}</option>`).join('');
   $('#ev').value = cur; $('#p_event').value = curP;
 }
 

@@ -5,7 +5,7 @@ import { ICONS } from '/js/shared/icons.js';
 import { getAttendanceState, formatManila } from '/config/schedule.js';
 import { createScanModal, SCAN_MODAL_CONFIG } from '/js/admin/scan-modal.js';
 
-await boot('admin', 'scan');
+const { profile } = await boot('admin', 'scan');
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const EV_CACHE_KEY = 'eventsync_cached_events';
@@ -112,11 +112,11 @@ function updateBanner() {
 async function loadEvents() {
   const { data, error } = await supabase
     .from('events')
-    .select('id,title,status,starts_at,ends_at,early_grace_minutes,late_grace_minutes,allow_early_test_attendance')
+    .select('id,title,status,starts_at,ends_at,early_grace_minutes,late_grace_minutes,allow_early_test_attendance,created_by')
     .order('starts_at', { ascending: false });
   if (!error && data) {
-    events = data;
-    saveCachedEvents(data);
+    events = profile.role === 'organizer' ? data.filter(e => e.created_by === profile.id) : data;
+    saveCachedEvents(events);
   } else if (!events.length) {
     events = loadCachedEvents();
   }

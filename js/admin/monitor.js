@@ -4,7 +4,7 @@ import { $, esc, fmtTime, toast, errMsg, watch } from '/js/core/ui.js';
 import { ICONS } from '/js/shared/icons.js';
 import { isLateCheckIn } from '/config/schedule.js';
 
-await boot('admin', 'monitor');
+const { profile } = await boot('admin', 'monitor');
 $('#iReg').innerHTML = ICONS.users(18);
 $('#iAtt').innerHTML = ICONS.check(18);
 $('#iLeft').innerHTML = ICONS.clock(18);
@@ -13,8 +13,8 @@ let seen = new Set(), first = true, evList = [];
 const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
 
 async function loadEvents() {
-  const { data } = await supabase.from('events').select('id,title,status,allow_early_test_attendance').order('starts_at', { ascending: false });
-  evList = data || [];
+  const { data } = await supabase.from('events').select('id,title,status,allow_early_test_attendance,created_by').order('starts_at', { ascending: false });
+  evList = profile.role === 'organizer' ? (data || []).filter(e => e.created_by === profile.id) : (data || []);
   const cur = $('#ev').value;
   $('#ev').innerHTML = '<option value="">All events</option>' + evList.map(e => `<option value="${e.id}">${esc(e.title)} (${e.status})</option>`).join('');
   $('#ev').value = cur;

@@ -2,6 +2,7 @@ import { supabase } from '/js/core/supabase.js';
 import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, fmtTime, toast, errMsg, watch } from '/js/core/ui.js';
 import { openQrModal } from '/js/user/qr-modal.js';
+import { openCertificateModal } from '/js/shared/certificate.js';
 import { ICONS } from '/js/shared/icons.js';
 import { eventBannerHtml } from '/js/shared/event-images.js';
 import { formatProgramShort } from '/js/shared/participant-options.js';
@@ -76,6 +77,7 @@ function render() {
       </div>
       <div class="row" style="margin-top:.6rem">
         ${r.status === 'registered' ? `<button class="btn" data-qr="${r.id}">${ICONS.qr(16)} View QR</button>` : ''}
+        ${att ? `<button class="btn ghost" data-cert="${r.id}">${ICONS.download(16)} Certificate</button>` : ''}
         ${r.status === 'registered' && !att ? `<button class="btn ghost" data-cancel="${r.id}" ${canCancel ? '' : 'disabled title="Cancellation closes when the event starts"'}>Cancel</button>` : ''}
       </div>
       ${r.status === 'registered' && !att && started ? '<p class="muted sm" style="margin:.4rem 0 0">Event started - cancellation is closed.</p>' : ''}
@@ -84,6 +86,22 @@ function render() {
 }
 
 $('#list').onclick = async e => {
+  const certBtn = e.target.closest('button[data-cert]');
+  if (certBtn) {
+    const r = rows.find(x => x.id === certBtn.dataset.cert);
+    const rawAtt = Array.isArray(r?.attendance) ? r.attendance[0] : r?.attendance;
+    if (!r || !rawAtt) return;
+    return openCertificateModal({
+      name: profile.full_name || profile.email,
+      schoolId: profile.school_id,
+      program: formatProgramShort(profile),
+      eventTitle: r.events?.title,
+      venue: r.events?.venue,
+      startsAt: r.events?.starts_at,
+      checkedInAt: rawAtt.checked_in_at,
+      token: r.qr_token
+    });
+  }
   const q = e.target.closest('button[data-qr]');
   if (q) {
     const r = rows.find(x => x.id === q.dataset.qr);

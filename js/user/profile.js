@@ -82,10 +82,54 @@ $('#pwform').onsubmit = async e => {
   if (error) $('#e_pw1').textContent = errMsg(error); else { toast('Password updated', 'success'); $('#pwform').reset(); }
 };
 
+async function loadRoleRequests() {
+  const box = $('#orgBody');
+  if (!box) return;
+  if (profile.role === 'admin' || profile.role === 'organizer') {
+    box.innerHTML = `<p class="sm"><span class="badge ok">${profile.role === 'admin' ? 'Administrator' : 'Event Organizer'}</span> Your account can create and manage events.</p>
+      <a class="btn sm" href="/admin/events" style="margin-top:.5rem;display:inline-flex">Open ${profile.role === 'admin' ? 'Admin' : 'Organizer'} View</a>`;
+    return;
+  }
+  const { data, error } = await supabase.rpc('my_role_requests');
+  if (error) { box.innerHTML = `<p class="muted sm">${esc(errMsg(error))}</p>`; return; }
+  const list = Array.isArray(data) ? data : [];
+  const latest = list[0] || null;
+  if (latest?.status === 'pending') {
+    box.innerHTML = `
+      <p class="sm"><span class="badge dup">Pending review</span> Submitted ${fmt(latest.created_at)}</p>
+      <p class="muted sm" style="margin:.35rem 0 0"><b>Reason:</b> ${esc(latest.reason)}<br><b>Planned events:</b> ${esc(latest.planned_events)}</p>`;
+    return;
+  }
+  const rejectedNote = latest?.status === 'rejected'
+    ? `<div style="padding:.6rem .75rem;margin-bottom:.75rem;border-radius:8px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35)" class="sm">
+         <b>Previous request rejected</b> (${fmt(latest.reviewed_at || latest.created_at)})${latest.decision_reason ? `<br><span class="muted">Reason: ${esc(latest.decision_reason)}</span>` : ''}
+       </div>`
+    : '';
+  box.innerHTML = `
+    ${rejectedNote}
+    <p class="muted sm" style="margin:0 0 .6rem">Want to host an official school, department, or organization event? Request Event Organizer access from an administrator.</p>
+    <form id="orgForm" novalidate>
+      <label for="orgReason">Why do you need organizer access?</label>
+      <textarea id="orgReason" rows="2" required minlength="5" placeholder="e.g., Faculty adviser / SSG officer organizing college events"></textarea>
+      <label for="orgPlanned">What kind of events do you plan to run?</label>
+      <input id="orgPlanned" required minlength="3" placeholder="e.g., Department seminars, workshops, general assemblies">
+      <button class="btn" style="margin-top:.85rem">Become an organizer</button>
+    </form>`;
+  $('#orgForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const reason = $('#orgReason').value.trim();
+    const planned = $('#orgPlanned').value.trim();
+    const { error: reqErr } = await supabase.rpc('request_organizer_role', { p_reason: reason, p_planned_events: planned });
+    if (reqErr) return toast(errMsg(reqErr), 'error');
+    toast('Organizer request submitted for admin review', 'success');
+    loadRoleRequests();
+  };
+}
+
 async function load() {
   const { data, error } = await supabase.from('attendance').select('id,checked_in_at,events(title,venue)').order('checked_in_at', { ascending: false });
   if (error) return toast(errMsg(error), 'error');
   $('#history').innerHTML = data.length ? data.map(a => `<li><span><b>${esc(a.events?.title)}</b><br><small class="muted">${esc(a.events?.venue)}</small></span><small class="muted">${fmt(a.checked_in_at)}</small></li>`).join('') : '<li class="empty">No attendance recorded yet.</li>';
 }
-await load();
-watch(['attendance'], load);
+await Promise.all([load(), loadRoleRequests()]);
+watch(['attendance', 'role_requests', 'profiles'], () => { load(); loadRoleRequests(); });

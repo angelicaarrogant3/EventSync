@@ -18,10 +18,17 @@
   </div>
 
   <div class="stats">
-    <div class="card stat"><b id="sPart">0</b><span>Participants</span></div>
+    <div class="card stat"><b id="sPart">0</b><span>Participants &amp; Organizers</span></div>
     <div class="card stat"><b id="sActive">0</b><span>Active accounts</span></div>
     <div class="card stat"><b id="sWeek">0</b><span>New this week</span></div>
     <div class="card stat"><b id="sInactive">0</b><span>Inactive accounts</span></div>
+  </div>
+
+  <div class="card" id="roleReqCard" style="margin:1rem 0" hidden>
+    <div class="pagehead" style="margin-bottom:.5rem">
+      <div><h2 style="margin:0">Organizer Role Requests <span class="badge dup" id="reqCountBadge">0</span></h2><p class="muted sm" style="margin:.15rem 0 0">Approve or reject requests from participants who want to organize events.</p></div>
+    </div>
+    <ul class="feed" id="roleReqList"></ul>
   </div>
 
   <div class="row toolbar" style="margin:1rem 0">

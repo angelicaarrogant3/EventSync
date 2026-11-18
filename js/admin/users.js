@@ -17,14 +17,68 @@ const courseYear = u => formatProgramShort(u);
 const schoolLabel = u => u.program_needs_update ? NEEDS_UPDATE_LABEL : (u.department || '—');
 
 async function load() {
-  const { data, error } = await supabase.rpc('admin_list_users');
+  const [{ data, error }, { data: reqs }] = await Promise.all([
+    supabase.rpc('admin_list_users'),
+    supabase.rpc('admin_list_role_requests')
+  ]);
   if (error) return toast(errMsg(error), 'error');
-  allUsers = (data.users || []).filter(u => u.role === 'user');
+  allUsers = (data.users || []).filter(u => u.role === 'user' || u.role === 'organizer');
+  renderRoleRequests(Array.isArray(reqs) ? reqs : []);
   renderSummary();
   populateSchools();
   populatePrograms();
   render();
 }
+
+function renderRoleRequests(reqs) {
+  const card = $('#roleReqCard'), listEl = $('#roleReqList'), badge = $('#reqCountBadge');
+  if (!card || !listEl) return;
+  const pending = reqs.filter(r => r.status === 'pending');
+  if (!reqs.length) { card.hidden = true; return; }
+  card.hidden = false;
+  badge.textContent = `${pending.length} pending`;
+  listEl.innerHTML = reqs.slice(0, 12).map(r => {
+    const stBadge = r.status === 'pending'
+      ? '<span class="badge dup">Pending</span>'
+      : r.status === 'approved'
+        ? '<span class="badge ok">Approved</span>'
+        : '<span class="badge cancelled">Rejected</span>';
+    const actions = r.status === 'pending'
+      ? `<div class="row">
+           <button type="button" class="btn sm ok" data-req-approve="${r.id}" ${r.user_id === me.id ? 'disabled title="Cannot approve your own request"' : ''}>Approve</button>
+           <button type="button" class="btn sm danger" data-req-reject="${r.id}" ${r.user_id === me.id ? 'disabled title="Cannot reject your own request"' : ''}>Reject</button>
+         </div>`
+      : `<small class="muted">${r.reviewer_name ? `by ${esc(r.reviewer_name)} · ` : ''}${fmt(r.reviewed_at || r.created_at)}</small>`;
+    return `<li>
+      <span>
+        <b>${esc(r.full_name || r.email)}</b> ${r.school_id ? `<small class="muted">(${esc(r.school_id)})</small>` : ''} ${stBadge}
+        <br><small class="muted"><b>Reason:</b> ${esc(r.reason)} · <b>Planned events:</b> ${esc(r.planned_events)}${r.decision_reason ? ` · <b>Note:</b> ${esc(r.decision_reason)}` : ''}</small>
+      </span>
+      ${actions}
+    </li>`;
+  }).join('');
+}
+
+$('#roleReqList')?.addEventListener('click', async ev => {
+  const appBtn = ev.target.closest('button[data-req-approve]');
+  if (appBtn) {
+    appBtn.disabled = true;
+    const { error } = await supabase.rpc('admin_review_role_request', { p_request_id: appBtn.dataset.reqApprove, p_decision: 'approved', p_decision_reason: null });
+    if (error) { appBtn.disabled = false; return toast(errMsg(error), 'error'); }
+    toast('Request approved — account is now an Event Organizer', 'success');
+    return load();
+  }
+  const rejBtn = ev.target.closest('button[data-req-reject]');
+  if (rejBtn) {
+    const reason = prompt('Optional reason for rejecting this request:', '');
+    if (reason === null) return;
+    rejBtn.disabled = true;
+    const { error } = await supabase.rpc('admin_review_role_request', { p_request_id: rejBtn.dataset.reqReject, p_decision: 'rejected', p_decision_reason: reason });
+    if (error) { rejBtn.disabled = false; return toast(errMsg(error), 'error'); }
+    toast('Request rejected', 'info');
+    return load();
+  }
+});
 
 function renderSummary() {
   const weekAgo = Date.now() - 7 * 86400e3;
@@ -97,7 +151,7 @@ function render() {
   const arrow = k => sortKey === k ? (sortDir === 1 ? ' ▲' : ' ▼') : '';
   $('#list').innerHTML = `<div class="tablewrap users-table"><table><thead><tr>${COLS.map(([k, l]) => `<th class="sort" data-sort="${k}">${l}${arrow(k)}</th>`).join('')}</tr></thead><tbody>${visible.map(u => `
     <tr class="clickable" data-uid="${u.id}">
-      <td data-label="Full Name"><b>${esc(u.full_name || '—')}</b>${u.member_type ? `<br><small class="muted">${esc(u.member_type)}</small>` : ''}</td>
+      <td data-label="Full Name"><b>${esc(u.full_name || '—')}</b>${u.role === 'organizer' ? ' <span class="badge ok">Organizer</span>' : ''}${u.member_type ? `<br><small class="muted">${esc(u.member_type)}</small>` : ''}</td>
       <td data-label="School ID">${esc(u.school_id || '—')}</td>
       <td data-label="Email">${esc(u.email)}</td>
       <td data-label="School">${esc(schoolLabel(u))}</td>
@@ -141,9 +195,10 @@ async function openDetail(uid) {
   const u = data.profile, regs = data.registrations || [];
   const isSelf = u.id === me.id;
   const nextStatus = u.status === 'active' ? 'inactive' : 'active';
+  const roleLabel = u.role === 'organizer' ? 'Event Organizer' : u.role === 'admin' ? 'Administrator' : 'Participant';
   $('#detailBody').innerHTML = `
     <div class="pagehead" style="margin-bottom:.5rem">
-      <div><h2>${esc(u.full_name || u.email)}</h2><p class="muted sm">${esc(u.email)} · Participant</p></div>
+      <div><h2>${esc(u.full_name || u.email)}</h2><p class="muted sm">${esc(u.email)} · ${roleLabel}</p></div>
       <span class="badge ${u.status === 'active' ? 'ok' : 'cancelled'}">${u.status}</span>
     </div>
     <div class="two sm" style="margin-bottom:1rem">
@@ -154,11 +209,13 @@ async function openDetail(uid) {
       <div><b>Program / Year:</b> ${esc(formatProgramFull(u))}</div>
       <div><b>Section:</b> ${esc(u.section || '—')}</div>
       <div><b>Signed up:</b> ${fmt(u.created_at)}</div>
+      <div><b>Role:</b> ${roleLabel}</div>
     </div>
     <div class="row" style="margin-bottom:1rem">
       <button class="btn sm ${u.status === 'active' ? 'danger' : 'ok'}" id="toggleStatus" ${isSelf ? 'disabled title="You cannot deactivate your own account"' : ''}>
         ${u.status === 'active' ? 'Deactivate account' : 'Reactivate account'}
       </button>
+      ${!isSelf ? `<button class="btn sm ghost" id="toggleRoleBtn">${u.role === 'organizer' ? 'Return to Participant' : 'Promote to Organizer'}</button>` : ''}
       <button class="btn sm ghost" id="resetPwBtn">Reset password</button>
     </div>
     <form id="resetForm" hidden style="margin-bottom:1rem;padding:.75rem;border:1px solid var(--line);border-radius:10px">
@@ -174,6 +231,18 @@ async function openDetail(uid) {
     <div class="row" style="justify-content:flex-end;margin-top:1rem"><button type="button" class="btn ghost" id="dClose">Close</button></div>`;
 
   $('#dClose').onclick = () => dlg.close();
+  const roleBtn = $('#toggleRoleBtn');
+  if (roleBtn) {
+    roleBtn.onclick = async () => {
+      const nextRole = u.role === 'organizer' ? 'user' : 'organizer';
+      const label = nextRole === 'organizer' ? 'Event Organizer' : 'Participant';
+      if (!confirm(`Change ${u.full_name || u.email}'s role to ${label}?`)) return;
+      const { error: rErr } = await supabase.rpc('admin_set_user_role', { p_user_id: u.id, p_role: nextRole });
+      if (rErr) return toast(errMsg(rErr), 'error');
+      toast(`Role updated to ${label}`, 'success');
+      dlg.close(); load();
+    };
+  }
   $('#toggleStatus').onclick = async () => {
     if (nextStatus === 'inactive' && !confirm(`Deactivate ${u.full_name || u.email}? They will be logged out and unable to sign in.`)) return;
     const { error: e2 } = await supabase.rpc('admin_set_user_status', { p_user_id: u.id, p_status: nextStatus });
@@ -220,4 +289,4 @@ $('#exportXlsx').onclick = async () => {
 };
 
 await load();
-watch(['profiles', 'registrations', 'attendance'], load);
+watch(['profiles', 'registrations', 'attendance', 'role_requests'], load);

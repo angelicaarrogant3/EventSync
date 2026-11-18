@@ -13,6 +13,7 @@ export const SCAN_MODAL_CONFIG = {
     SAVED_OFFLINE: 3000,
     NO_TIME_IN_RECORDED: 0,
     WRONG_EVENT: 0,             // 0 = stay until staff taps "Scan next"
+    SELF_SCAN_NOT_ALLOWED: 0,
     REGISTRATION_CANCELLED: 0,
     EVENT_CANCELLED: 0,
     INVALID_QR: 0
@@ -27,6 +28,20 @@ export function mapScanOutcome(r = {}) {
   const status = String(r.status || '').toLowerCase();
   const scanTime = formatManila(r.check_out_time || r.checked_in_at || r.scanned_at || new Date());
 
+  if (status === 'self_scan' || code === 'SELF_SCAN_NOT_ALLOWED') {
+    return {
+      key: 'SELF_SCAN_NOT_ALLOWED',
+      tone: 'red',
+      icon: ICONS.xCircle(38),
+      title: 'SELF-SCAN BLOCKED',
+      message: r.message || 'You cannot scan your own QR pass. Ask another organizer or admin to verify you.',
+      timeLabel: scanTime,
+      participant: r.participant || '',
+      schoolId: r.school_id || '',
+      program: r.course ? (r.year_level ? `${r.course} · Year ${r.year_level}` : r.course) : '',
+      event: r.event || ''
+    };
+  }
   if (status === 'checked_out' || code === 'CHECKED_OUT') {
     return {
       key: 'CHECKED_OUT',

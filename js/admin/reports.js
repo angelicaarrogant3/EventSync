@@ -6,7 +6,7 @@ import {
   buildSummaryModel, summaryWorkbook, attendanceRate
 } from '/js/shared/sheet.js';
 
-await boot('admin', 'reports');
+const { profile } = await boot('admin', 'reports');
 let stats = [];
 
 function downloadBlob(filename, blob) {
@@ -25,7 +25,7 @@ async function downloadXlsx(filename, wb) {
 async function loadEvents() {
   const { data, error } = await supabase.from('event_stats').select('*').order('starts_at', { ascending: false });
   if (error) return toast(errMsg(error), 'error');
-  stats = data;
+  stats = profile.role === 'organizer' ? (data || []).filter(e => e.created_by === profile.id) : (data || []);
   $('#summary').innerHTML = stats.length ? `<div class="tablewrap"><table><thead><tr><th>Event</th><th>Date</th><th>Status</th><th>Registered</th><th>Attended</th><th>No-show</th><th>Rate</th></tr></thead><tbody>${stats.map(e => {
     const rate = attendanceRate(e.registered_count, e.attended_count);
     return `<tr><td data-label="Event">${esc(e.title)}</td><td data-label="Date">${fmt(e.starts_at)}</td><td data-label="Status"><span class="badge ${e.status}">${e.status}</span></td><td data-label="Registered">${e.registered_count}</td><td data-label="Attended">${e.attended_count}</td><td data-label="No-show">${Math.max(e.registered_count - e.attended_count, 0)}</td><td data-label="Rate">${rate}%</td></tr>`;

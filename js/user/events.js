@@ -14,11 +14,36 @@ const pending = new Set();
 
 const norm = a => (Array.isArray(a) ? a[0] : a) || null;
 
+function eligibilityInfo(e) {
+  const schools = Array.isArray(e.allowed_schools) ? e.allowed_schools.filter(Boolean) : [];
+  const progs = Array.isArray(e.allowed_programs) ? e.allowed_programs.filter(Boolean) : [];
+  const years = Array.isArray(e.allowed_year_levels) ? e.allowed_year_levels.map(Number).filter(Boolean) : [];
+  const parts = [];
+  if (schools.length) parts.push(schools.join(', '));
+  if (progs.length) parts.push(progs.join(', '));
+  if (years.length) parts.push(`Year ${years.join(', ')}`);
+  const summary = parts.join(' · ');
+
+  let eligible = true;
+  if (schools.length && !schools.includes(profile.department || '')) eligible = false;
+  if (progs.length && !progs.includes(profile.program || '')) eligible = false;
+  if (years.length && !years.includes(Number(profile.year_level || -1))) eligible = false;
+
+  return { restricted: parts.length > 0, eligible, summary, reason: summary ? `Restricted to ${summary}` : '' };
+}
+
 /** Decide what the card's action area shows. */
 function stateFor(e) {
   const reg = mine.get(e.id);
   const now = new Date();
   if (reg?.status === 'registered') return { kind: 'registered', attended: reg.attended };
+  if (profile.role === 'organizer' && e.created_by === profile.id) {
+    return { kind: 'disabled', label: 'Your event (Host)', reason: 'Organizers do not register as attendees for their own event.' };
+  }
+  const elig = eligibilityInfo(e);
+  if (elig.restricted && !elig.eligible) {
+    return { kind: 'disabled', label: 'Not eligible', reason: elig.reason };
+  }
   if (e.capacity && e.registered_count >= e.capacity) return { kind: 'disabled', label: 'Full' };
   const rs = getRegistrationState(e, now);
   if (!rs.open) return { kind: 'disabled', label: 'Registration closed', reason: rs.reason };
@@ -36,10 +61,11 @@ function render() {
     if (s.kind === 'registered') action = `<div class="row"><button class="btn" disabled>Registered</button><button class="btn ghost" data-qr="${e.id}">${ICONS.qr(16)} View QR</button><button class="btn ghost sm" data-detail="${e.id}">Details</button>${s.attended ? '<span class="badge ok">Attended</span>' : ''}</div>`;
     else if (s.kind === 'disabled') action = `<div class="row"><button class="btn" disabled title="${esc(s.reason || s.label)}">${s.label}</button><button class="btn ghost sm" data-detail="${e.id}">Details</button></div>${s.reason ? `<p class="muted sm" style="margin:.4rem 0 0">${esc(s.reason)}</p>` : ''}`;
     else action = `<div class="row"><button class="btn" data-reg="${e.id}" ${pending.has(e.id) ? 'disabled' : ''}>${pending.has(e.id) ? 'Registering...' : `${s.label} ${ICONS.arrowRight(16)}`}</button><button class="btn ghost sm" data-detail="${e.id}">Details</button></div>`;
+    const elig = eligibilityInfo(e);
     return `<div class="card hoverable fade-in" data-card="${e.id}">
       <a href="#event-${e.id}" data-detail="${e.id}" style="display:block;text-decoration:none;color:inherit">${eventBannerHtml(e, { variant: 'card' })}</a>
       <div class="stat-top" style="margin-bottom:.5rem"><h2 style="margin:0">${esc(e.title)}</h2><span class="badge ${badge[0]}">${badge[1]}</span></div>
-      <p class="muted sm">${ICONS.clock(14)} ${fmt(e.starts_at)} – ${fmt(e.ends_at)}<br>${ICONS.pin(14)} ${esc(e.venue)}${e.registration_deadline ? `<br><span class="faint">Register by ${fmt(e.registration_deadline)}</span>` : ''}</p>
+      <p class="muted sm">${ICONS.clock(14)} ${fmt(e.starts_at)} – ${fmt(e.ends_at)}<br>${ICONS.pin(14)} ${esc(e.venue)}${e.registration_deadline ? `<br><span class="faint">Register by ${fmt(e.registration_deadline)}</span>` : ''}${elig.restricted ? `<br><span class="faint">Open to: ${esc(elig.summary)}</span>` : ''}</p>
       ${e.description ? `<p class="sm">${esc(e.description)}</p>` : ''}
       <div style="margin:.85rem 0">
         <p class="sm" style="margin:0 0 .35rem"><b>${e.registered_count}</b> registered${e.capacity ? ` / ${e.capacity} seats · <b>${left}</b> left` : ''}</p>
@@ -53,7 +79,7 @@ async function load() {
   const [ev, rg] = await Promise.all([
     supabase
       .from('events')
-      .select('id,title,description,venue,starts_at,ends_at,registration_opens_at,registration_deadline,early_grace_minutes,late_grace_minutes,late_after_minutes,allow_early_test_attendance,capacity,registered_count,status,image_path,image_updated_at')
+      .select('id,title,description,venue,starts_at,ends_at,registration_opens_at,registration_deadline,early_grace_minutes,late_grace_minutes,late_after_minutes,allow_early_test_attendance,capacity,registered_count,status,image_path,image_updated_at,allowed_schools,allowed_programs,allowed_year_levels,created_by')
       .eq('status', 'published')
       .gte('ends_at', new Date().toISOString())
       .order('starts_at'),

@@ -18,8 +18,8 @@ const NAV = {
     ['profile', '/user/profile', 'Profile']
   ]
 };
-export const homeFor = role => role === 'admin' ? '/admin/events' : '/user/events';
-const halt = () => new Promise(() => {});
+export const homeFor = role => (role === 'admin' || role === 'organizer') ? '/admin/events' : '/user/events';
+const halt = () => new Promise(() => { });
 
 export async function logout() { await supabase.auth.signOut(); location.replace('/login'); }
 
@@ -39,29 +39,46 @@ export async function boot(role, active) {
   const profile = await getProfile();
   if (!profile) { location.replace('/login'); await halt(); }
   if (profile.status === 'inactive') { await supabase.auth.signOut(); location.replace('/login?deactivated=1'); await halt(); }
-  if (profile.role !== role) { location.replace(homeFor(profile.role)); await halt(); }
 
-  const links = NAV[role].map(([k, href, label]) => `<a href="${href}" class="${k === active ? 'active' : ''}">${label}</a>`).join('');
+  const canManage = profile.role === 'admin' || profile.role === 'organizer';
+  if (role === 'admin') {
+    if (!canManage) { location.replace('/user/events'); await halt(); }
+    if (active === 'users' && profile.role !== 'admin') { location.replace('/admin/events'); await halt(); }
+  }
+
+  const navItems = role === 'admin'
+    ? NAV.admin.filter(([k]) => k !== 'users' || profile.role === 'admin')
+    : NAV.user;
+  const links = navItems.map(([k, href, label]) => `<a href="${href}" class="${k === active ? 'active' : ''}">${label}</a>`).join('');
+  const switchLink = canManage
+    ? (role === 'admin'
+      ? `<a class="btn ghost sm" href="/user/events" title="Switch to Participant View">Participant View</a>`
+      : `<a class="btn ghost sm" href="/admin/events" title="Switch to ${profile.role === 'admin' ? 'Admin' : 'Organizer'} View">${profile.role === 'admin' ? 'Admin View' : 'Organizer View'}</a>`)
+    : '';
+  const roleTag = profile.role === 'admin' ? 'admin' : profile.role === 'organizer' ? 'organizer' : '';
+  const roleTitle = profile.role === 'admin' ? 'Administrator' : profile.role === 'organizer' ? 'Event Organizer' : 'Participant';
   const shell = document.createElement('header');
   shell.className = 'topbar';
   shell.innerHTML = `
     <div class="nav-pill">
-      <a class="brand" href="${homeFor(role)}">
+      <a class="brand" href="${role === 'admin' ? '/admin/events' : '/user/events'}">
         <img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="42" height="28">
         <span class="brand-text hide-xs">EventSync</span>
       </a>
       <nav class="nav-links" aria-label="Main navigation">${links}</nav>
       <div class="topbar-right">
+        ${switchLink}
         <span id="netChip" class="chip wait">Connecting</span>
-        <span class="who">${esc(profile.full_name || profile.email)}${profile.school_id ? ` <small>${esc(profile.school_id)}</small>` : ''}${profile.course ? ` <small>${esc(profile.course)}</small>` : ''}${role === 'admin' ? ' <small>admin</small>' : ''}</span>
+        <span class="who">${esc(profile.full_name || profile.email)}${profile.school_id ? ` <small>${esc(profile.school_id)}</small>` : ''}${profile.course ? ` <small>${esc(profile.course)}</small>` : ''}${roleTag ? ` <small>${roleTag}</small>` : ''}</span>
         <button class="btn ghost sm" id="logoutBtn">Logout</button>
         <button class="nav-burger" id="navBurger" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navDrawer">${ICONS.menu(20)}</button>
       </div>
     </div>
     <nav class="nav-drawer" id="navDrawer" aria-label="Mobile navigation" hidden>
       ${links}
+      ${switchLink ? `<div style="padding:.35rem 0">${switchLink}</div>` : ''}
       <div class="drawer-meta">
-        <span>${esc(profile.full_name || profile.email)} (${role === 'admin' ? 'Administrator' : 'Participant'})</span>
+        <span>${esc(profile.full_name || profile.email)} (${roleTitle})</span>
       </div>
     </nav>`;
   document.body.prepend(shell);
@@ -84,7 +101,7 @@ export async function boot(role, active) {
 function initFeedbackBanner() {
   const KEY = 'eventsync_fb_dismissed';
   const getDismissed = () => { try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { return new Set(); } };
-  const saveDismissed = set => { try { localStorage.setItem(KEY, JSON.stringify([...set])); } catch {} };
+  const saveDismissed = set => { try { localStorage.setItem(KEY, JSON.stringify([...set])); } catch { } };
   let timer = null;
 
   const check = async () => {
