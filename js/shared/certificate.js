@@ -469,21 +469,39 @@ export async function openCertificateModal({ eventId }) {
   };
 }
 
+const QR_CORNER_PRESETS = {
+  'bottom-right': {
+    qr: { x: 1700, y: 1125, width: 155, height: 155 },
+    id: { x: 1560, y: 1290, width: 390, height: 32 }
+  },
+  'bottom-left': {
+    qr: { x: 145, y: 1125, width: 155, height: 155 },
+    id: { x: 100, y: 1290, width: 390, height: 32 }
+  },
+  'bottom-center': {
+    qr: { x: 922, y: 1125, width: 155, height: 155 },
+    id: { x: 700, y: 1290, width: 600, height: 32 }
+  }
+};
+
 /**
- * Interactive Certificate Template Upload & Field Placement Editor Modal.
+ * One-Click Certificate Template Upload & Name Placement Editor Modal.
+ * Click anywhere on the certificate preview (or use the sliders) to position the Participant Name;
+ * the Verification QR & Certificate ID are placed automatically in the chosen corner.
  */
 export async function openTemplateEditorModal({ profile, initialTemplate = null, onSaved = null }) {
   let dlg = document.getElementById('tplEditorDlg');
   if (!dlg) {
     dlg = document.createElement('dialog');
     dlg.id = 'tplEditorDlg';
-    dlg.style.width = 'min(1040px, 98vw)';
+    dlg.style.width = 'min(1020px, 98vw)';
     dlg.style.maxHeight = '94vh';
     dlg.style.overflow = 'auto';
     document.body.appendChild(dlg);
   }
 
-  let tpl = initialTemplate ? structuredClone(initialTemplate) : {
+  const isCustomInit = initialTemplate && initialTemplate.id !== DEFAULT_TEMPLATE_ID;
+  let tpl = isCustomInit ? structuredClone(initialTemplate) : {
     id: null,
     name: '',
     file_path: null,
@@ -494,49 +512,60 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     is_active: true,
     layout: structuredClone(SIMPLE_UPLOAD_LAYOUT)
   };
-  // Always keep coordinate space normalized to 2000x1414 so boxes never overflow on smaller images
-  if (tpl.width !== 2000 || tpl.height !== 1414) {
-    const sx = 2000 / (tpl.width || 2000);
-    const sy = 1414 / (tpl.height || 1414);
-    tpl.layout = (tpl.layout || []).map(f => ({
-      ...f,
-      x: Math.round((f.x || 0) * sx),
-      y: Math.round((f.y || 0) * sy),
-      width: Math.round((f.width || 400) * sx),
-      height: Math.round((f.height || 60) * sy)
-    }));
-    tpl.width = 2000;
-    tpl.height = 1414;
+  tpl.width = 2000;
+  tpl.height = 1414;
+
+  // Extract or initialize the Participant Name box + Corner QR preset
+  let nameBox = (tpl.layout || []).find(f => f.type === 'participant_name') || {
+    type: 'participant_name', x: 300, y: 610, width: 1400, height: 100,
+    font: 'script', size: 68, color: '#991b1b', alignment: 'center', auto_shrink: true
+  };
+  let qrCorner = 'bottom-right';
+  const existingQr = (tpl.layout || []).find(f => f.type === 'qr_code');
+  if (existingQr) {
+    if (existingQr.x < 500) qrCorner = 'bottom-left';
+    else if (existingQr.x < 1200) qrCorner = 'bottom-center';
   }
+
   let pendingFile = null;
-  let bgPreviewUrl = null;
-  let selectedIdx = 0;
+  let bgImageObj = null;
   let useLongSample = false;
 
   if (tpl.file_path && tpl.mime_type !== 'system/default' && tpl.mime_type !== 'application/pdf') {
     const { data } = await supabase.storage.from('certificate-templates').createSignedUrl(tpl.file_path, 300);
-    bgPreviewUrl = data?.signedUrl || null;
+    if (data?.signedUrl) bgImageObj = await loadImg(data.signedUrl);
   }
+
+  function buildCleanLayout() {
+    const corner = QR_CORNER_PRESETS[qrCorner] || QR_CORNER_PRESETS['bottom-right'];
+    return [
+      { ...nameBox, type: 'participant_name', auto_shrink: true },
+      { type: 'certificate_id', ...corner.id, font: 'mono', size: 18, color: '#44403c', alignment: 'center', auto_shrink: true },
+      { type: 'qr_code', ...corner.qr, font: 'sans', size: 16, color: '#000000', alignment: 'center', auto_shrink: false }
+    ];
+  }
+
+  const centerX = () => Math.round((nameBox.x + nameBox.width / 2) / 20); // 0..100%
+  const centerY = () => Math.round((nameBox.y + nameBox.height / 2) / 14.14); // 0..100%
 
   dlg.innerHTML = `
     <div class="pagehead" style="margin-bottom:.75rem">
       <div>
-        <h2 style="margin:0">${tpl.id ? 'Edit Certificate Template' : 'New Certificate Template'}</h2>
-        <p class="muted sm" style="margin:.15rem 0 0">Upload a blank design (without participant details) and drag or resize the field boxes below. Certificate ID and QR code are required.</p>
+        <h2 style="margin:0">${tpl.id ? 'Edit Certificate Design' : 'Upload Certificate Design'}</h2>
+        <p class="muted sm" style="margin:.15rem 0 0">Upload your certificate image and <b>click directly on the name line</b> (or use the sliders) to position the participant's name.</p>
       </div>
       <div class="row">
-        <button type="button" class="btn ghost sm" id="tplPresetSimple" title="Keep only Participant Name, QR, and Certificate ID">Simple (Name + QR only)</button>
         <button type="button" class="btn ghost sm" id="tplDlSample">Download blank sample</button>
-        <button type="button" class="btn ghost sm" id="tplToggleSample">Preview: Standard sample</button>
+        <button type="button" class="btn ghost sm" id="tplToggleSample">Test: Normal name</button>
       </div>
     </div>
     <div class="two" style="margin-bottom:.75rem">
       <div>
         <label for="tplName">Template name</label>
-        <input id="tplName" required minlength="2" placeholder="e.g., College of Engineering 2026 Certificate" value="${esc(tpl.name)}">
+        <input id="tplName" required minlength="2" placeholder="e.g., Seminar 2026 Certificate" value="${esc(tpl.name)}">
       </div>
       <div>
-        <label for="tplFile">Background design (PNG, JPG, or 1-page PDF · max 10 MB)</label>
+        <label for="tplFile">Upload certificate image (PNG, JPG, or 1-page PDF · max 10 MB)</label>
         <input id="tplFile" type="file" accept="image/png,image/jpeg,application/pdf">
         <p class="muted sm" id="tplFileWarn" style="margin:.2rem 0 0;color:#f59e0b"></p>
       </div>
@@ -548,20 +577,51 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
 
     <div style="display:grid;grid-template-columns:1fr 290px;gap:1rem;align-items:start">
       <div>
-        <div id="tplStageWrap" style="position:relative;width:100%;aspect-ratio:${tpl.width}/${tpl.height};background:#fdfbf7;border:1px solid var(--line);border-radius:8px;overflow:hidden;user-select:none">
-          <canvas id="tplBgCanvas" width="${tpl.width}" height="${tpl.height}" style="width:100%;height:100%;display:block"></canvas>
-          <div id="tplBoxesLayer" style="position:absolute;inset:0"></div>
+        <div id="tplStageWrap" title="Click anywhere on the certificate to place the Participant Name here" style="position:relative;width:100%;aspect-ratio:2000/1414;background:#fdfbf7;border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:crosshair;user-select:none">
+          <canvas id="tplBgCanvas" width="2000" height="1414" style="width:100%;height:100%;display:block"></canvas>
         </div>
+        <p class="muted sm" style="margin:.4rem 0 0;text-align:center">Tip: Click or drag anywhere on the certificate preview to move the Participant Name.</p>
       </div>
-      <div class="card" style="padding:.85rem">
-        <h3 style="margin:0 0 .5rem;font-size:.95rem">Field Placement</h3>
-        <div class="row" style="margin-bottom:.6rem">
-          <select id="tplAddField" style="flex:1">
-            ${ALLOWED_FIELD_DEFS.map(d => `<option value="${d.type}">${esc(d.label)}</option>`).join('')}
-          </select>
-          <button type="button" class="btn sm ghost" id="tplAddFieldBtn">+ Add</button>
+
+      <div class="card" style="padding:.9rem">
+        <h3 style="margin:0 0 .65rem;font-size:.98rem">Participant Name Style</h3>
+
+        <label for="pPosY">Vertical Position (Up ↔ Down): <b id="pPosYVal">${centerY()}%</b></label>
+        <input id="pPosY" type="range" min="15" max="85" step="1" value="${centerY()}">
+
+        <div class="row" style="justify-content:space-between;margin-top:.45rem">
+          <label for="pPosX" style="margin:0">Horizontal: <b id="pPosXVal">${centerX()}%</b></label>
+          <button type="button" class="btn ghost sm" id="pCenterBtn" style="padding:.15rem .5rem;font-size:.75rem">Center</button>
         </div>
-        <div id="tplPropPanel"></div>
+        <input id="pPosX" type="range" min="20" max="80" step="1" value="${centerX()}">
+
+        <label for="pFont" style="margin-top:.55rem">Font Style</label>
+        <select id="pFont">
+          <option value="script" ${nameBox.font === 'script' ? 'selected' : ''}>Script (Cursive)</option>
+          <option value="serif" ${nameBox.font === 'serif' ? 'selected' : ''}>Serif (Formal)</option>
+          <option value="sans" ${nameBox.font === 'sans' ? 'selected' : ''}>Sans-serif (Modern)</option>
+        </select>
+
+        <label for="pSize" style="margin-top:.55rem">Font Size: <b id="pSizeVal">${Number(nameBox.size) || 68}px</b></label>
+        <input id="pSize" type="range" min="28" max="110" step="2" value="${Number(nameBox.size) || 68}">
+
+        <label for="pColor" style="margin-top:.55rem">Text Color</label>
+        <div class="row" style="gap:.4rem;align-items:center">
+          <input id="pColor" type="color" value="${esc(nameBox.color || '#991b1b')}" style="width:46px;height:34px;padding:2px">
+          <button type="button" class="btn ghost sm" data-swatch="#1c1917" style="padding:.25rem .5rem">Black</button>
+          <button type="button" class="btn ghost sm" data-swatch="#991b1b" style="padding:.25rem .5rem">Crimson</button>
+          <button type="button" class="btn ghost sm" data-swatch="#1e3a8a" style="padding:.25rem .5rem">Navy</button>
+          <button type="button" class="btn ghost sm" data-swatch="#92400e" style="padding:.25rem .5rem">Gold</button>
+        </div>
+
+        <div style="margin-top:.85rem;padding-top:.75rem;border-top:1px solid var(--line)">
+          <label for="pQrCorner">Verification QR &amp; ID Stamp</label>
+          <select id="pQrCorner">
+            <option value="bottom-right" ${qrCorner === 'bottom-right' ? 'selected' : ''}>Bottom-Right Corner</option>
+            <option value="bottom-left" ${qrCorner === 'bottom-left' ? 'selected' : ''}>Bottom-Left Corner</option>
+            <option value="bottom-center" ${qrCorner === 'bottom-center' ? 'selected' : ''}>Bottom-Center</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -574,156 +634,88 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
 
   const stageWrap = dlg.querySelector('#tplStageWrap');
   const bgCanvas = dlg.querySelector('#tplBgCanvas');
-  const boxesLayer = dlg.querySelector('#tplBoxesLayer');
-  const propPanel = dlg.querySelector('#tplPropPanel');
+  let renderPending = false;
 
-  async function drawBg() {
-    bgCanvas.width = tpl.width;
-    bgCanvas.height = tpl.height;
-    stageWrap.style.aspectRatio = `${tpl.width}/${tpl.height}`;
-    const ctx = bgCanvas.getContext('2d');
-    if (bgPreviewUrl) {
-      const img = await loadImg(bgPreviewUrl);
-      if (img) { ctx.drawImage(img, 0, 0, tpl.width, tpl.height); return; }
+  async function refreshPreview() {
+    if (renderPending) return;
+    renderPending = true;
+    try {
+      tpl.layout = buildCleanLayout();
+      const sample = useLongSample ? SAMPLE_DATA_LONG : SAMPLE_DATA_NORMAL;
+      const rendered = await renderSnapshotToCanvas({
+        width: 2000,
+        height: 1414,
+        fields: tpl.layout,
+        values: sample
+      }, bgImageObj);
+      const ctx = bgCanvas.getContext('2d');
+      ctx.clearRect(0, 0, 2000, 1414);
+      ctx.drawImage(rendered, 0, 0);
+
+      // Subtle dashed highlight around the Participant Name area so user sees the active placement line
+      ctx.save();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 8]);
+      ctx.strokeRect(nameBox.x, nameBox.y, nameBox.width, nameBox.height);
+      ctx.restore();
+    } finally {
+      renderPending = false;
     }
-    drawDefaultBackgroundOnCanvas(ctx, tpl.width, tpl.height);
   }
 
-  function renderBoxes() {
-    const sample = useLongSample ? SAMPLE_DATA_LONG : SAMPLE_DATA_NORMAL;
-    const stageH = stageWrap.getBoundingClientRect().height || 420;
-    const fontScale = stageH / tpl.height;
-    boxesLayer.innerHTML = tpl.layout.map((f, idx) => {
-      const leftPct = (f.x / tpl.width) * 100;
-      const topPct = (f.y / tpl.height) * 100;
-      const wPct = (f.width / tpl.width) * 100;
-      const hPct = (f.height / tpl.height) * 100;
-      const isSel = idx === selectedIdx;
-      const txt = f.type === 'qr_code' ? 'QR CODE' : (sample[f.type] || f.type);
-      const previewPx = Math.max(9, Math.round((Number(f.size) || 28) * fontScale));
-      return `<div data-box="${idx}" style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;border:2px ${isSel ? 'solid #ef4444' : 'dashed rgba(153,27,27,.55)'};background:${isSel ? 'rgba(239,68,68,.12)' : 'rgba(255,255,255,.28)'};color:${esc(f.color || '#1c1917')};display:flex;align-items:center;justify-content:${f.alignment === 'left' ? 'flex-start' : f.alignment === 'right' ? 'flex-end' : 'center'};padding:2px 6px;font-family:${cssFontFamily(f.font)};font-size:${previewPx}px;font-weight:700;cursor:move;box-sizing:border-box;overflow:hidden;white-space:nowrap;border-radius:4px">
-        <span style="pointer-events:none;overflow:hidden;text-overflow:ellipsis">${esc(txt)}</span>
-        <span data-resize="${idx}" title="Drag corner to resize" style="position:absolute;right:0;bottom:0;width:14px;height:14px;background:#ef4444;cursor:nwse-resize;border-top-left-radius:3px"></span>
-      </div>`;
-    }).join('');
-    renderProps();
+  function moveNameToPercent(px, py) {
+    const clampedX = Math.max(15, Math.min(85, Math.round(px)));
+    const clampedY = Math.max(12, Math.min(88, Math.round(py)));
+    nameBox.x = Math.round((clampedX / 100) * 2000 - nameBox.width / 2);
+    nameBox.y = Math.round((clampedY / 100) * 1414 - nameBox.height / 2);
+    dlg.querySelector('#pPosX').value = clampedX;
+    dlg.querySelector('#pPosXVal').textContent = `${clampedX}%`;
+    dlg.querySelector('#pPosY').value = clampedY;
+    dlg.querySelector('#pPosYVal').textContent = `${clampedY}%`;
+    refreshPreview();
   }
 
-  function renderProps() {
-    const f = tpl.layout[selectedIdx];
-    if (!f) { propPanel.innerHTML = '<p class="muted sm">Select a box on the canvas.</p>'; return; }
-    const def = ALLOWED_FIELD_DEFS.find(d => d.type === f.type);
-    const isMandatory = def?.mandatory;
-    propPanel.innerHTML = `
-      <div class="sm" style="margin-bottom:.45rem"><b>${esc(def?.label || f.type)}</b></div>
-      <div class="two">
-        <div><label>Font</label>
-          <select id="pFont">
-            <option value="serif" ${f.font === 'serif' ? 'selected' : ''}>Serif</option>
-            <option value="sans" ${f.font === 'sans' ? 'selected' : ''}>Sans-serif</option>
-            <option value="script" ${f.font === 'script' ? 'selected' : ''}>Script</option>
-            <option value="mono" ${f.font === 'mono' ? 'selected' : ''}>Monospace</option>
-          </select>
-        </div>
-        <div><label>Size (px)</label><input id="pSize" type="number" min="10" max="120" value="${Number(f.size) || 28}"></div>
-        <div><label>Color</label><input id="pColor" type="color" value="${esc(f.color || '#1c1917')}"></div>
-        <div><label>Align</label>
-          <select id="pAlign">
-            <option value="left" ${f.alignment === 'left' ? 'selected' : ''}>Left</option>
-            <option value="center" ${(!f.alignment || f.alignment === 'center') ? 'selected' : ''}>Center</option>
-            <option value="right" ${f.alignment === 'right' ? 'selected' : ''}>Right</option>
-          </select>
-        </div>
-      </div>
-      <label class="check" style="margin-top:.45rem"><input type="checkbox" id="pShrink" ${f.auto_shrink !== false ? 'checked' : ''}> <span>Auto-shrink to fit long text</span></label>
-      <button type="button" class="btn sm ghost" id="pCenterBox" style="margin-top:.5rem;width:100%">Center horizontally</button>
-      <button type="button" class="btn sm danger" id="pRemoveBox" style="margin-top:.45rem;width:100%" ${isMandatory ? 'disabled title="Required field cannot be removed"' : ''}>
-        ${isMandatory ? 'Required field (cannot delete)' : 'Remove field box'}
-      </button>`;
-
-    propPanel.querySelector('#pFont').onchange = e => { f.font = e.target.value; renderBoxes(); };
-    propPanel.querySelector('#pSize').oninput = e => { f.size = Number(e.target.value) || 28; renderBoxes(); };
-    propPanel.querySelector('#pColor').oninput = e => { f.color = e.target.value; renderBoxes(); };
-    propPanel.querySelector('#pAlign').onchange = e => { f.alignment = e.target.value; renderBoxes(); };
-    propPanel.querySelector('#pShrink').onchange = e => { f.auto_shrink = e.target.checked; };
-    propPanel.querySelector('#pCenterBox').onclick = () => {
-      f.x = Math.round((tpl.width - f.width) / 2);
-      renderBoxes();
-    };
-    propPanel.querySelector('#pRemoveBox').onclick = () => {
-      if (isMandatory) return;
-      tpl.layout.splice(selectedIdx, 1);
-      selectedIdx = Math.max(0, selectedIdx - 1);
-      renderBoxes();
-    };
-  }
-
-  // Drag & resize interaction on boxesLayer
-  let dragState = null;
-  boxesLayer.onpointerdown = ev => {
-    const resizeEl = ev.target.closest('[data-resize]');
-    const boxEl = ev.target.closest('[data-box]');
-    if (!boxEl) return;
-    selectedIdx = Number(boxEl.dataset.box);
-    const f = tpl.layout[selectedIdx];
+  // Click or drag directly on the certificate preview to place the name!
+  let pointerDown = false;
+  const handleStagePointer = ev => {
     const rect = stageWrap.getBoundingClientRect();
-    dragState = {
-      mode: resizeEl ? 'resize' : 'move',
-      startX: ev.clientX,
-      startY: ev.clientY,
-      origX: f.x,
-      origY: f.y,
-      origW: f.width,
-      origH: f.height,
-      scaleX: tpl.width / rect.width,
-      scaleY: tpl.height / rect.height,
-      f
+    const px = ((ev.clientX - rect.left) / rect.width) * 100;
+    const py = ((ev.clientY - rect.top) / rect.height) * 100;
+    moveNameToPercent(px, py);
+  };
+  stageWrap.onpointerdown = ev => {
+    pointerDown = true;
+    stageWrap.setPointerCapture(ev.pointerId);
+    handleStagePointer(ev);
+  };
+  stageWrap.onpointermove = ev => { if (pointerDown) handleStagePointer(ev); };
+  stageWrap.onpointerup = () => { pointerDown = false; };
+
+  dlg.querySelector('#pPosY').oninput = e => moveNameToPercent(centerX(), Number(e.target.value));
+  dlg.querySelector('#pPosX').oninput = e => moveNameToPercent(Number(e.target.value), centerY());
+  dlg.querySelector('#pCenterBtn').onclick = () => moveNameToPercent(50, centerY());
+  dlg.querySelector('#pFont').onchange = e => { nameBox.font = e.target.value; refreshPreview(); };
+  dlg.querySelector('#pSize').oninput = e => {
+    nameBox.size = Number(e.target.value) || 68;
+    dlg.querySelector('#pSizeVal').textContent = `${nameBox.size}px`;
+    refreshPreview();
+  };
+  dlg.querySelector('#pColor').oninput = e => { nameBox.color = e.target.value; refreshPreview(); };
+  dlg.querySelectorAll('[data-swatch]').forEach(btn => {
+    btn.onclick = () => {
+      nameBox.color = btn.dataset.swatch;
+      dlg.querySelector('#pColor').value = nameBox.color;
+      refreshPreview();
     };
-    boxesLayer.setPointerCapture(ev.pointerId);
-    renderBoxes();
-  };
-  boxesLayer.onpointermove = ev => {
-    if (!dragState) return;
-    const dx = (ev.clientX - dragState.startX) * dragState.scaleX;
-    const dy = (ev.clientY - dragState.startY) * dragState.scaleY;
-    const f = dragState.f;
-    if (dragState.mode === 'move') {
-      f.x = Math.round(Math.max(0, Math.min(tpl.width - f.width, dragState.origX + dx)));
-      f.y = Math.round(Math.max(0, Math.min(tpl.height - f.height, dragState.origY + dy)));
-    } else {
-      f.width = Math.round(Math.max(80, Math.min(tpl.width - f.x, dragState.origW + dx)));
-      f.height = Math.round(Math.max(28, Math.min(tpl.height - f.y, dragState.origH + dy)));
-    }
-    renderBoxes();
-  };
-  boxesLayer.onpointerup = () => { dragState = null; };
+  });
+  dlg.querySelector('#pQrCorner').onchange = e => { qrCorner = e.target.value; refreshPreview(); };
 
-  dlg.querySelector('#tplAddFieldBtn').onclick = () => {
-    const type = dlg.querySelector('#tplAddField').value;
-    const existing = tpl.layout.findIndex(x => x.type === type);
-    if (existing >= 0) {
-      selectedIdx = existing;
-      renderBoxes();
-      return toast('Field is already on the canvas (selected)', 'info');
-    }
-    tpl.layout.push({
-      type, x: 400, y: 400, width: type === 'qr_code' ? 180 : 900, height: type === 'qr_code' ? 180 : 50,
-      font: 'sans', size: 28, color: '#1c1917', alignment: 'center', auto_shrink: true
-    });
-    selectedIdx = tpl.layout.length - 1;
-    renderBoxes();
-  };
-
-  dlg.querySelector('#tplPresetSimple').onclick = () => {
-    tpl.layout = structuredClone(SIMPLE_UPLOAD_LAYOUT);
-    selectedIdx = 0;
-    renderBoxes();
-  };
   dlg.querySelector('#tplDlSample').onclick = downloadBlankSampleDesign;
   dlg.querySelector('#tplToggleSample').onclick = e => {
     useLongSample = !useLongSample;
-    e.currentTarget.textContent = useLongSample ? 'Preview: Long name & event' : 'Preview: Standard sample';
-    renderBoxes();
+    e.currentTarget.textContent = useLongSample ? 'Test: Very long name' : 'Test: Normal name';
+    refreshPreview();
   };
 
   dlg.querySelector('#tplFile').onchange = async e => {
@@ -739,20 +731,16 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     }
     warnEl.textContent = v.warning || '';
     pendingFile = { file, ...v };
-    // Keep coordinate space at 2000x1414 so boxes never jump off-screen when uploading smaller images
-    tpl.width = 2000;
-    tpl.height = 1414;
     tpl.mime_type = v.mime;
-    if (tpl.layout.length > 3) {
-      tpl.layout = structuredClone(SIMPLE_UPLOAD_LAYOUT);
-      selectedIdx = 0;
+    if (!dlg.querySelector('#tplName').value.trim()) {
+      dlg.querySelector('#tplName').value = file.name.replace(/\.[^.]+$/, '');
     }
     if (v.mime !== 'application/pdf') {
-      if (bgPreviewUrl && bgPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(bgPreviewUrl);
-      bgPreviewUrl = URL.createObjectURL(file);
+      const url = URL.createObjectURL(file);
+      bgImageObj = await loadImg(url);
+      URL.revokeObjectURL(url);
     }
-    await drawBg();
-    renderBoxes();
+    await refreshPreview();
   };
 
   dlg.querySelector('#tplCancelBtn').onclick = () => dlg.close();
@@ -760,12 +748,8 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     const btn = e.currentTarget;
     const name = dlg.querySelector('#tplName').value.trim();
     if (name.length < 2) return toast('Enter a template name', 'error');
-    const hasId = tpl.layout.some(x => x.type === 'certificate_id');
-    const hasQr = tpl.layout.some(x => x.type === 'qr_code');
-    if (!hasId || !hasQr) {
-      return toast('Certificate ID and QR code boxes are mandatory and must be placed', 'error');
-    }
 
+    tpl.layout = buildCleanLayout();
     btn.disabled = true;
     try {
       let filePath = tpl.file_path;
@@ -783,8 +767,8 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
         name,
         file_path: filePath,
         mime_type: mimeType,
-        width: tpl.width,
-        height: tpl.height,
+        width: 2000,
+        height: 1414,
         layout: tpl.layout,
         is_global: profile.role === 'admin' ? !!dlg.querySelector('#tplGlobal')?.checked : false,
         is_active: profile.role === 'admin' ? !!dlg.querySelector('#tplActive')?.checked : true
@@ -806,6 +790,5 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     }
   };
 
-  await drawBg();
-  renderBoxes();
+  await refreshPreview();
 }
