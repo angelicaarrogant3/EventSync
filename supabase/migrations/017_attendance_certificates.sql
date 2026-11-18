@@ -711,4 +711,9 @@ create policy cert_templates_storage_delete
     and (public.is_admin() or (public.is_organizer() and (storage.foldername(name))[1] = auth.uid()::text))
   );
 
+-- Fix profile update trigger permission so authenticated users can save program changes on My Profile
+grant execute on function public.resolve_program_selection(text, text, text, text, text) to authenticated;
+alter function public.validate_profile_update() security definer;
+alter function public.sync_profile_program_code() security definer;
+
 notify pgrst, 'reload schema';
