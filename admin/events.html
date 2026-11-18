@@ -89,16 +89,38 @@
                                 value="3"> <span>3rd Year</span></label><label class="check" style="margin:0"><input
                                 type="checkbox" value="4"> <span>4th Year</span></label></div>
                 </div>
+                <div style="margin-top:1rem;padding-top:.85rem;border-top:1px solid var(--border)">
+                    <div class="row" style="justify-content:space-between">
+                        <label class="check" style="margin:0"><input type="checkbox" id="certEnabled" checked>
+                            <span><b>Enable attendance certificates</b> (available to attended participants after the event ends)</span></label>
+                    </div>
+                    <div id="certSetupWrap" style="margin-top:.55rem">
+                        <label for="certTemplate">Certificate template</label>
+                        <div class="row">
+                            <select id="certTemplate" style="flex:1"></select>
+                            <button type="button" class="btn sm ghost" id="certEditTplBtn">Edit template</button>
+                            <button type="button" class="btn sm ghost" id="certNewTplBtn">+ Upload / Design</button>
+                        </div>
+                        <label for="orgOffice">Organizing office or organization</label>
+                        <input id="orgOffice" placeholder="e.g., School of Engineering / SSG">
+                        <div class="two">
+                            <div><label for="sig1Name">Signatory 1 name</label><input id="sig1Name" placeholder="e.g., Dr. Maria Santos"></div>
+                            <div><label for="sig1Title">Signatory 1 title</label><input id="sig1Title" placeholder="e.g., Event Organizer"></div>
+                            <div><label for="sig1File">Signatory 1 signature image (optional)</label><input id="sig1File" type="file" accept="image/png,image/jpeg"></div>
+                            <div><label for="sig2File">Signatory 2 signature image (optional)</label><input id="sig2File" type="file" accept="image/png,image/jpeg"></div>
+                            <div><label for="sig2Name">Signatory 2 name</label><input id="sig2Name" placeholder="e.g., Engr. Juan Reyes"></div>
+                            <div><label for="sig2Title">Signatory 2 title</label><input id="sig2Title" placeholder="e.g., College Dean"></div>
+                        </div>
+                    </div>
+                </div>
                 <div style="margin-top:1rem;padding-top:.85rem;border-top:1px solid var(--border)"><label
                         for="fbUrl">Feedback form link (Google Form, optional)</label>
-                    <p class="muted sm" style="margin:.15rem 0 .35rem">Create your Google Form beforehand and paste the
-                        link here. Participants will see it after the event ends.</p>
+                    <p class="muted sm" style="margin:.15rem 0 .35rem">Participants will see this link after the event ends. Set sharing to 'Anyone with the link'.</p>
                     <div class="row"><input id="fbUrl" type="url" maxlength="500"
                             placeholder="https://docs.google.com/forms/d/... or https://forms.gle/..."
                             style="flex:1"><button type="button" class="btn sm ghost" id="fbTestBtn">Test link</button>
                     </div>
-                    <p class="muted sm" style="margin:.3rem 0 .6rem">In Google Forms, set sharing to 'Anyone with the
-                        link' and add a question for school ID or name.</p><label for="fbAudience">Who can
+                    <label for="fbAudience" style="margin-top:.45rem">Who can
                         answer</label><select id="fbAudience">
                         <option value="attended">People who attended (recommended)</option>
                         <option value="registered">Everyone who registered</option>

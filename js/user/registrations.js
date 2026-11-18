@@ -53,6 +53,7 @@ function render() {
       : '';
 
     const fb = r.feedback || {};
+    const cert = r.certificate || {};
     let fbBlock = '';
     if (fb.available && fb.url) {
       fbBlock = `<div style="margin-top:.75rem">
@@ -65,22 +66,30 @@ function render() {
       fbBlock = '<p class="muted sm" style="margin:.55rem 0 0">Feedback is for people who attended.</p>';
     }
 
+    let certNote = '';
+    if (cert.state === 'pending_event_end' && cert.available_at) {
+      certNote = `<p class="muted sm" style="margin:.45rem 0 0">Certificate becomes available after ${fmt(cert.available_at)}.</p>`;
+    } else if (cert.state === 'revoked') {
+      certNote = `<p class="sm" style="margin:.45rem 0 0;color:#fca5a5">Certificate revoked${cert.revoke_reason ? `: ${esc(cert.revoke_reason)}` : ''}.</p>`;
+    }
+
     return `<div class="card hoverable fade-in">
       <div class="evt-reg-head">
         ${eventBannerHtml(r.events || { title: 'Event' }, { variant: 'reg' })}
         <div>
           <h2>${esc(r.events?.title)}</h2>
           <p class="muted sm">${ICONS.clock(14)} ${fmt(r.events?.starts_at)}<br>${ICONS.pin(14)} ${esc(r.events?.venue)}</p>
-          <p><span class="badge ${label[0]}">${label[1]}</span></p>
+          <p><span class="badge ${label[0]}">${label[1]}</span>${cert.state === 'ready' ? ' <span class="badge ok">Certificate ready</span>' : ''}</p>
           ${timesLine}
         </div>
       </div>
       <div class="row" style="margin-top:.6rem">
         ${r.status === 'registered' ? `<button class="btn" data-qr="${r.id}">${ICONS.qr(16)} View QR</button>` : ''}
-        ${att ? `<button class="btn ghost" data-cert="${r.id}">${ICONS.download(16)} Certificate</button>` : ''}
+        ${cert.state === 'ready' ? `<button class="btn ghost" data-cert="${r.event_id}">${ICONS.download(16)} Download certificate</button>` : ''}
         ${r.status === 'registered' && !att ? `<button class="btn ghost" data-cancel="${r.id}" ${canCancel ? '' : 'disabled title="Cancellation closes when the event starts"'}>Cancel</button>` : ''}
       </div>
       ${r.status === 'registered' && !att && started ? '<p class="muted sm" style="margin:.4rem 0 0">Event started - cancellation is closed.</p>' : ''}
+      ${certNote}
       ${fbBlock}</div>`;
   }).join('');
 }
@@ -88,19 +97,7 @@ function render() {
 $('#list').onclick = async e => {
   const certBtn = e.target.closest('button[data-cert]');
   if (certBtn) {
-    const r = rows.find(x => x.id === certBtn.dataset.cert);
-    const rawAtt = Array.isArray(r?.attendance) ? r.attendance[0] : r?.attendance;
-    if (!r || !rawAtt) return;
-    return openCertificateModal({
-      name: profile.full_name || profile.email,
-      schoolId: profile.school_id,
-      program: formatProgramShort(profile),
-      eventTitle: r.events?.title,
-      venue: r.events?.venue,
-      startsAt: r.events?.starts_at,
-      checkedInAt: rawAtt.checked_in_at,
-      token: r.qr_token
-    });
+    return openCertificateModal({ eventId: certBtn.dataset.cert });
   }
   const q = e.target.closest('button[data-qr]');
   if (q) {
@@ -120,5 +117,5 @@ $('#list').onclick = async e => {
 };
 
 await load();
-watch(['registrations', 'attendance', 'events'], load);
+watch(['registrations', 'attendance', 'events', 'certificates'], load);
 window.addEventListener('focus', load);

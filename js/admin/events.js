@@ -11,11 +11,23 @@ import {
 } from '/config/schedule.js';
 import { validateFeedbackUrl } from '/config/feedback.js';
 import { PROGRAM_SCHOOLS, ADMIN_OFFICE_SCHOOL } from '/js/shared/participant-options.js';
+import { openTemplateEditorModal, DEFAULT_TEMPLATE_ID } from '/js/shared/certificate.js';
 
 const { profile } = await boot('admin', 'events');
-let events = [], editingId = null, editingImagePath = null, editingOrig = null;
+let events = [], templates = [], editingId = null, editingImagePath = null, editingOrig = null;
 let selectedFile = null, previewObjectUrl = null, pendingRemove = false;
 const dlg = $('#dlg');
+
+async function loadTemplates(selectedId = null) {
+  const { data } = await supabase.from('certificate_templates').select('*').eq('is_active', true).order('is_global', { ascending: false }).order('created_at', { ascending: false });
+  templates = data || [];
+  const sel = $('#certTemplate');
+  if (!sel) return;
+  const cur = selectedId || sel.value || DEFAULT_TEMPLATE_ID;
+  sel.innerHTML = templates.map(t => `<option value="${t.id}">${esc(t.name)}${t.is_global ? ' (Global)' : ''} · v${t.version}</option>`).join('');
+  if (templates.some(t => t.id === cur)) sel.value = cur;
+}
+await loadTemplates();
 
 function initEligibilitySelectors() {
   const scEl = $('#eligSchool'), prEl = $('#eligProgram');
@@ -128,10 +140,11 @@ async function load() {
       <td data-label="Venue">${esc(e.venue)}</td>
       <td data-label="Status"><span class="badge ${e.status}">${e.status}</span> <span class="badge ${dStatus.code}">${dStatus.label}</span></td>
       <td data-label="Reg / Cap">${e.registered_count} / ${e.capacity ?? '∞'}</td>
-      <td data-label="Attended">${e.attended_count}${e.test_attended_count ? ` <small class="muted">(+${e.test_attended_count} test)</small>` : ''}</td>
+      <td data-label="Attended">${e.attended_count}${e.test_attended_count ? ` <small class="muted">(+${e.test_attended_count} test)</small>` : ''}${e.certificates_issued_count ? `<br><small class="muted">${e.certificates_issued_count} cert(s)</small>` : ''}</td>
       <td data-label="Actions"><div class="row">
         <button class="btn sm ghost" data-a="edit" data-id="${e.id}">Edit</button>
         <button class="btn sm ghost" data-a="att" data-id="${e.id}">Check-ins${specialCount ? ` (${specialCount})` : ''}</button>
+        ${profile.role === 'admin' && e.certificates_issued_count ? `<button class="btn sm ghost" data-a="certs" data-id="${e.id}">Certificates (${e.certificates_issued_count})</button>` : ''}
         ${canToggleEarly ? `<button class="btn sm ${e.feedback_opened_early ? 'ghost' : 'ok'}" data-a="fbEarly" data-id="${e.id}">${e.feedback_opened_early ? 'Close early feedback' : 'Open feedback now'}</button>` : ''}
         <button class="btn sm ${e.status === 'published' ? 'ghost' : 'ok'}" data-a="toggle" data-id="${e.id}">${e.status === 'published' ? 'Unpublish' : 'Publish'}</button>
         <button class="btn sm danger" data-a="del" data-id="${e.id}">Delete</button></div></td>
@@ -168,6 +181,16 @@ function openForm(e) {
   $('#testMode').checked = !!e?.allow_early_test_attendance;
   $('#fbUrl').value = e?.feedback_url || '';
   $('#fbAudience').value = e?.feedback_audience || 'attended';
+  if ($('#certEnabled')) {
+    $('#certEnabled').checked = e ? e.certificates_enabled !== false : true;
+    $('#certSetupWrap').hidden = !$('#certEnabled').checked;
+    $('#certTemplate').value = e?.certificate_template_id || DEFAULT_TEMPLATE_ID;
+    $('#orgOffice').value = e?.organizing_office || '';
+    $('#sig1Name').value = e?.signatory_1_name || '';
+    $('#sig1Title').value = e?.signatory_1_title || '';
+    $('#sig2Name').value = e?.signatory_2_name || '';
+    $('#sig2Title').value = e?.signatory_2_title || '';
+  }
   if ($('#eligSchool')) {
     $('#eligSchool').value = e?.allowed_schools?.[0] || '';
     $('#eligSchool')._syncPrograms?.(e?.allowed_programs?.[0] || '');
@@ -246,6 +269,60 @@ async function openCheckinsModal(e) {
   };
 }
 
+async function openCertsAdminModal(e) {
+  const attDlg = $('#attDlg');
+  $('#attBody').innerHTML = '<p class="muted">Loading certificates...</p>';
+  attDlg.showModal();
+  const { data: certs, error } = await supabase
+    .from('certificates')
+    .select('id,certificate_code,name_at_issuance,status,issued_at,revoke_reason,template_version')
+    .eq('event_id', e.id)
+    .order('issued_at', { ascending: false });
+  if (error) { attDlg.close(); return toast(errMsg(error), 'error'); }
+
+  $('#attBody').innerHTML = `
+    <div class="pagehead" style="margin-bottom:.75rem">
+      <div><h2 style="margin:0">${esc(e.title)} — Certificates (${(certs || []).length})</h2><p class="muted sm">Admins can revoke or reissue issued certificates.</p></div>
+    </div>
+    ${certs?.length ? `<ul class="feed">${certs.map(c => `
+      <li>
+        <span>
+          <b>${esc(c.name_at_issuance)}</b> · <code>${esc(c.certificate_code)}</code>
+          <span class="badge ${c.status === 'valid' ? 'ok' : 'cancelled'}">${esc(c.status)}</span>
+          <br><small class="muted">Issued ${fmt(c.issued_at)} · Template v${c.template_version}${c.revoke_reason ? ` · Revoked: ${esc(c.revoke_reason)}` : ''}</small>
+        </span>
+        <div class="row">
+          <a class="btn sm ghost" href="/verify/${encodeURIComponent(c.certificate_code)}" target="_blank" rel="noopener">Verify</a>
+          ${c.status === 'valid'
+            ? `<button type="button" class="btn sm danger" data-cert-revoke="${c.id}">Revoke</button>`
+            : `<button type="button" class="btn sm ok" data-cert-reissue="${c.id}">Reissue</button>`}
+        </div>
+      </li>`).join('')}</ul>` : '<p class="muted sm">No certificates issued for this event yet.</p>'}
+    <div class="row" style="justify-content:flex-end;margin-top:1rem"><button type="button" class="btn ghost" id="attClose">Close</button></div>`;
+
+  $('#attClose').onclick = () => attDlg.close();
+  $('#attBody').onclick = async ev => {
+    const revBtn = ev.target.closest('button[data-cert-revoke]');
+    if (revBtn) {
+      const reason = prompt('Reason for revoking this certificate:');
+      if (!reason) return;
+      const { error: rErr } = await supabase.rpc('admin_revoke_certificate', { p_certificate_id: revBtn.dataset.certRevoke, p_reason: reason });
+      if (rErr) return toast(errMsg(rErr), 'error');
+      toast('Certificate revoked', 'info');
+      await load();
+      return openCertsAdminModal(events.find(x => x.id === e.id) || e);
+    }
+    const reBtn = ev.target.closest('button[data-cert-reissue]');
+    if (reBtn) {
+      const { error: reErr } = await supabase.rpc('admin_reissue_certificate', { p_certificate_id: reBtn.dataset.certReissue });
+      if (reErr) return toast(errMsg(reErr), 'error');
+      toast('Certificate reissued with updated profile name', 'success');
+      await load();
+      return openCertsAdminModal(events.find(x => x.id === e.id) || e);
+    }
+  };
+}
+
 $('#imgChoose').onclick = () => $('#imgFile').click();
 $('#imgFile').onchange = ev => handlePickedFile(ev.target.files?.[0]);
 $('#imgRemove').onclick = () => {
@@ -269,6 +346,25 @@ drop.ondrop = ev => {
 
 $('#newBtn').onclick = () => openForm();
 $('#cancel').onclick = () => { clearPreviewUrl(); dlg.close(); };
+if ($('#certEnabled')) {
+  $('#certEnabled').onchange = () => { $('#certSetupWrap').hidden = !$('#certEnabled').checked; };
+  $('#certNewTplBtn').onclick = () => openTemplateEditorModal({
+    profile,
+    initialTemplate: null,
+    onSaved: saved => loadTemplates(saved?.id)
+  });
+  $('#certEditTplBtn').onclick = () => {
+    const sel = templates.find(t => t.id === $('#certTemplate').value) || null;
+    if (sel && sel.is_global && profile.role !== 'admin') {
+      return toast('Global templates are read-only for organizers. Click "+ Upload / Design" to create your own template.', 'info');
+    }
+    openTemplateEditorModal({
+      profile,
+      initialTemplate: sel,
+      onSaved: saved => loadTemplates(saved?.id)
+    });
+  };
+}
 $('#fbTestBtn').onclick = () => {
   const res = validateFeedbackUrl($('#fbUrl').value);
   if (!res.ok) return toast(res.error, 'error');
@@ -293,6 +389,13 @@ $('#form').onsubmit = async ev => {
     allow_early_test_attendance: $('#testMode').checked,
     feedback_url: fbRes.url,
     feedback_audience: $('#fbAudience').value || 'attended',
+    certificates_enabled: $('#certEnabled') ? $('#certEnabled').checked : true,
+    certificate_template_id: $('#certTemplate')?.value || DEFAULT_TEMPLATE_ID,
+    organizing_office: $('#orgOffice')?.value.trim() || null,
+    signatory_1_name: $('#sig1Name')?.value.trim() || null,
+    signatory_1_title: $('#sig1Title')?.value.trim() || null,
+    signatory_2_name: $('#sig2Name')?.value.trim() || null,
+    signatory_2_title: $('#sig2Title')?.value.trim() || null,
     allowed_schools: $('#eligSchool')?.value ? [$('#eligSchool').value] : null,
     allowed_programs: $('#eligProgram')?.value ? [$('#eligProgram').value] : null,
     allowed_year_levels: (() => {
@@ -329,6 +432,17 @@ $('#form').onsubmit = async ev => {
   if (error) { btn.disabled = false; return toast(errMsg(error), 'error'); }
 
   const targetId = editingId || saved.id;
+
+  // Upload optional signature images if selected
+  for (const [elId, col] of [['sig1File', 'signatory_1_sig_path'], ['sig2File', 'signatory_2_sig_path']]) {
+    const sf = $(`#${elId}`)?.files?.[0];
+    if (sf) {
+      const ext = sf.type === 'image/png' ? 'png' : 'jpg';
+      const sigPath = `${profile.id}/sig-${targetId}-${col}.${ext}`;
+      const { error: sigErr } = await supabase.storage.from('certificate-templates').upload(sigPath, sf, { contentType: sf.type, upsert: true });
+      if (!sigErr) await supabase.from('events').update({ [col]: sigPath }).eq('id', targetId);
+    }
+  }
 
   if (selectedFile) {
     $('#imgProg').classList.add('show');
@@ -382,6 +496,7 @@ $('#list').onclick = async ev => {
   const e = events.find(x => x.id === b.dataset.id);
   if (b.dataset.a === 'edit') return openForm(e);
   if (b.dataset.a === 'att') return openCheckinsModal(e);
+  if (b.dataset.a === 'certs') return openCertsAdminModal(e);
   if (b.dataset.a === 'fbEarly') {
     const next = !e.feedback_opened_early;
     const msg = next

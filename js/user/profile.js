@@ -4,6 +4,7 @@ import { $, esc, fmt, toast, errMsg, watch, initPasswordEyes } from '/js/core/ui
 import { MEMBER_TYPES, YEAR_LEVELS, validateProgramSelection } from '/js/shared/participant-options.js';
 import { mountProgramSelector } from '/js/shared/program-selector.js';
 import { PH_CONTACT, passwordIssues } from '/js/shared/validation.js';
+import { openCertificateModal } from '/js/shared/certificate.js';
 
 const { profile } = await boot('user', 'profile');
 initPasswordEyes();
@@ -127,9 +128,47 @@ async function loadRoleRequests() {
 }
 
 async function load() {
-  const { data, error } = await supabase.from('attendance').select('id,checked_in_at,events(title,venue)').order('checked_in_at', { ascending: false });
+  const { data, error } = await supabase.rpc('my_registrations');
   if (error) return toast(errMsg(error), 'error');
-  $('#history').innerHTML = data.length ? data.map(a => `<li><span><b>${esc(a.events?.title)}</b><br><small class="muted">${esc(a.events?.venue)}</small></span><small class="muted">${fmt(a.checked_in_at)}</small></li>`).join('') : '<li class="empty">No attendance recorded yet.</li>';
+  const regs = (Array.isArray(data) ? data : []).filter(r => r.status === 'registered');
+  if (!regs.length) {
+    $('#history').innerHTML = '<li class="empty">No attendance recorded yet.</li>';
+    return;
+  }
+  $('#history').innerHTML = regs.map(r => {
+    const cert = r.certificate || {};
+    const fb = r.feedback || {};
+    const att = r.attendance;
+    let statusBadge = '<span class="badge">Not attended</span>';
+    let subLine = '';
+    if (cert.state === 'ready') {
+      statusBadge = '<span class="badge ok">Certificate ready</span>';
+      subLine = att?.checked_in_at ? ` · Attended ${fmt(att.checked_in_at)}` : '';
+    } else if (cert.state === 'pending_event_end') {
+      statusBadge = '<span class="badge dup">Attended</span>';
+      subLine = ` · Certificate available after ${fmt(cert.available_at)}`;
+    } else if (cert.state === 'revoked') {
+      statusBadge = '<span class="badge cancelled">Certificate revoked</span>';
+    }
+    const actions = `
+      <div class="row" style="gap:.4rem">
+        ${cert.state === 'ready' ? `<button type="button" class="btn sm" data-cert="${r.event_id}">Download certificate</button>` : ''}
+        ${fb.available && fb.url ? `<a class="btn sm ghost" href="${esc(fb.url)}" target="_blank" rel="noopener noreferrer">Give feedback</a>` : ''}
+      </div>`;
+    return `<li>
+      <span>
+        <b>${esc(r.events?.title)}</b> ${statusBadge}
+        <br><small class="muted">${esc(r.events?.venue)}${subLine}</small>
+      </span>
+      ${actions}
+    </li>`;
+  }).join('');
 }
+
+$('#history')?.addEventListener('click', ev => {
+  const btn = ev.target.closest('button[data-cert]');
+  if (btn) openCertificateModal({ eventId: btn.dataset.cert });
+});
+
 await Promise.all([load(), loadRoleRequests()]);
-watch(['attendance', 'role_requests', 'profiles'], () => { load(); loadRoleRequests(); });
+watch(['attendance', 'registrations', 'events', 'certificates', 'role_requests', 'profiles'], () => { load(); loadRoleRequests(); });

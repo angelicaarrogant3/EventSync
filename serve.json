@@ -1,5 +1,8 @@
 {
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/verify/:code", "destination": "/verify.html" }
+  ],
   "redirects": [
     { "source": "/admin", "destination": "/admin/events", "type": 302 },
     { "source": "/user", "destination": "/user/events", "type": 302 }

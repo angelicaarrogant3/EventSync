@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#070708">
+  <title>Verify Certificate — EventSync</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/icon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/icon-180.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="stylesheet" href="/css/theme.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="nav-pill">
+      <a class="brand" href="/">
+        <img class="es-logo" src="/assets/logo.png" alt="EventSync logo" width="42" height="28">
+        <span class="brand-text">EventSync</span>
+      </a>
+      <div class="topbar-right">
+        <a class="btn ghost sm" href="/">Home</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="max-width:620px;margin:2rem auto">
+    <div class="card">
+      <h1 style="margin:0 0 .35rem">Certificate Verification</h1>
+      <p class="muted sm" style="margin:0 0 1rem">Enter or scan a certificate ID (e.g., <code>CERT-2026-K7M4Q9X2</code>) to verify its authenticity.</p>
+      <form id="verifyForm" class="row" style="margin-bottom:1.25rem">
+        <input id="codeInput" placeholder="CERT-2026-XXXXXXXX" style="flex:1;text-transform:uppercase" required>
+        <button class="btn" id="verifyBtn">Verify</button>
+      </form>
+      <div id="resultBox"></div>
+    </div>
+  </main>
+  <script type="module" src="/js/public/verify.js"></script>
+</body>
+</html>
