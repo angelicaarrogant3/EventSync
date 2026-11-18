@@ -11,8 +11,9 @@
 </head><body>
 <main class="container">
   <div class="pagehead">
-    <div><h1>Users</h1><p class="muted sm">Overview of all participant accounts.</p></div>
+    <div><h1>Users</h1><p class="muted sm">Create, edit, delete accounts, and assign or revoke Event Organizer rights directly.</p></div>
     <div class="row">
+      <button class="btn" id="newUserBtn">+ Add User / Organizer</button>
       <button class="btn ghost" id="exportXlsx">Export Excel (.xlsx)</button>
     </div>
   </div>
@@ -33,6 +34,11 @@
 
   <div class="row toolbar" style="margin:1rem 0">
     <input id="q" placeholder="Search name, email or school ID" style="flex:1;min-width:220px">
+    <select id="fRole" aria-label="Filter by role">
+      <option value="">All roles</option>
+      <option value="user">Participants</option>
+      <option value="organizer">Event Organizers</option>
+    </select>
     <select id="fStatus" aria-label="Filter by status">
       <option value="">All statuses</option>
       <option value="active">Active</option>
@@ -52,8 +58,37 @@
     <button class="btn ghost sm" id="loadMore">Load more</button>
   </div>
 
-  <dialog id="detailDlg" style="width:min(620px,96vw);max-height:92vh;overflow:auto">
+  <dialog id="detailDlg" style="width:min(660px,96vw);max-height:92vh;overflow:auto">
     <div id="detailBody"></div>
+  </dialog>
+
+  <dialog id="createUserDlg" style="width:min(580px,96vw);max-height:92vh;overflow:auto">
+    <form id="createUserForm" novalidate>
+      <h2 style="margin:0 0 .25rem">Add User / Event Organizer</h2>
+      <p class="muted sm" style="margin:0 0 .85rem">Create a Participant or Event Organizer account directly without requiring a role request.</p>
+      <div class="two">
+        <div><label for="cuName">Full name *</label><input id="cuName" required minlength="2" placeholder="Juan Dela Cruz"></div>
+        <div><label for="cuRole">Account role *</label>
+          <select id="cuRole">
+            <option value="user">Participant</option>
+            <option value="organizer">Event Organizer</option>
+          </select>
+        </div>
+        <div><label for="cuEmail">Email *</label><input id="cuEmail" type="email" required placeholder="user@bipsu.edu.ph"></div>
+        <div><label for="cuPassword">Initial password (min 8 chars) *</label><input id="cuPassword" type="password" required minlength="8" placeholder="At least 8 characters"></div>
+        <div><label for="cuSchoolId">School / Employee ID</label><input id="cuSchoolId" placeholder="e.g., 21-1-0123"></div>
+        <div><label for="cuContact">Contact number</label><input id="cuContact" placeholder="09XXXXXXXXX"></div>
+      </div>
+      <label for="cuMemberType">Member type</label>
+      <select id="cuMemberType"></select>
+      <div id="cuProgMount"></div>
+      <div id="cuYearWrap" hidden><label for="cuYear">Year level</label><select id="cuYear"></select></div>
+      <label for="cuSection">Section (optional)</label><input id="cuSection" maxlength="30">
+      <div class="row" style="justify-content:flex-end;margin-top:1rem">
+        <button type="button" class="btn ghost" id="cuCancel">Cancel</button>
+        <button class="btn" id="cuSubmit">Create account</button>
+      </div>
+    </form>
   </dialog>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>

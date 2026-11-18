@@ -711,6 +711,181 @@ create policy cert_templates_storage_delete
     and (public.is_admin() or (public.is_organizer() and (storage.foldername(name))[1] = auth.uid()::text))
   );
 
+-- 12. Admin full User CRUD & Direct Organizer Role Assignment / Revocation
+create or replace function public.admin_set_user_role(p_user_id uuid, p_role text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  target public.profiles;
+  v_role text := lower(btrim(coalesce(p_role, '')));
+begin
+  if not public.is_admin() then raise exception 'Admin only'; end if;
+  if v_role not in ('user', 'organizer', 'admin') then raise exception 'Invalid role'; end if;
+  if p_user_id = auth.uid() then raise exception 'You cannot change your own role'; end if;
+
+  select * into target from public.profiles where id = p_user_id;
+  if not found then raise exception 'User not found'; end if;
+
+  perform set_config('eventsync.allow_role_change', '1', true);
+  update public.profiles set role = v_role where id = p_user_id;
+  perform set_config('eventsync.allow_role_change', '0', true);
+
+  -- Keep role_requests queue consistent if user had a pending request
+  if v_role = 'organizer' then
+    update public.role_requests
+       set status = 'approved', reviewed_by = auth.uid(), reviewed_at = now(),
+           decision_reason = coalesce(decision_reason, 'Directly assigned by administrator')
+     where user_id = p_user_id and status = 'pending';
+  elsif v_role = 'user' then
+    update public.role_requests
+       set status = 'rejected', reviewed_by = auth.uid(), reviewed_at = now(),
+           decision_reason = 'Organizer role revoked by administrator'
+     where user_id = p_user_id and status = 'pending';
+  end if;
+
+  perform public.log_activity(
+    case when v_role = 'organizer' then 'user.promoted_organizer'
+         when target.role = 'organizer' and v_role = 'user' then 'user.revoked_organizer'
+         else 'user.role_changed' end,
+    'profile', p_user_id::text,
+    jsonb_build_object('email', target.email, 'old_role', target.role, 'new_role', v_role)
+  );
+end $$;
+grant execute on function public.admin_set_user_role(uuid, text) to authenticated;
+
+create or replace function public.admin_create_user(p jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid    uuid := gen_random_uuid();
+  em     text := lower(btrim(coalesce(p->>'email', '')));
+  nm     text := btrim(coalesce(p->>'full_name', ''));
+  sid    text := nullif(btrim(coalesce(p->>'school_id', '')), '');
+  pw     text := coalesce(p->>'password', '');
+  v_role text := lower(btrim(coalesce(p->>'role', 'user')));
+  mt     text := nullif(btrim(coalesce(p->>'member_type', '')), '');
+  v_dept text := nullif(btrim(coalesce(p->>'department', '')), '');
+  v_prog text := nullif(btrim(coalesce(p->>'program', '')), '');
+  v_maj  text := nullif(btrim(coalesce(p->>'major', '')), '');
+  v_crs  text := nullif(btrim(coalesce(p->>'course', '')), '');
+  v_yl   smallint := case when coalesce(p->>'year_level', '') ~ '^[1-4]$' then (p->>'year_level')::smallint else null end;
+  v_sec  text := nullif(btrim(coalesce(p->>'section', '')), '');
+  v_cnt  text := nullif(btrim(coalesce(p->>'contact_number', '')), '');
+begin
+  if not public.is_admin() then raise exception 'Admin only'; end if;
+  if v_role not in ('user', 'organizer') then raise exception 'Role must be user (Participant) or organizer (Event Organizer)'; end if;
+  if char_length(nm) < 2 or char_length(nm) > 120 then raise exception 'Full name is required'; end if;
+  if em !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'A valid email is required'; end if;
+  if exists (select 1 from public.profiles where lower(email) = em) then raise exception 'This email is already registered'; end if;
+  if sid is not null then
+    if sid !~ '^[A-Za-z0-9-]{4,20}$' then raise exception 'School ID must be 4-20 letters, numbers or dashes'; end if;
+    if exists (select 1 from public.profiles where lower(school_id) = lower(sid)) then raise exception 'This school ID is already registered'; end if;
+  end if;
+  if char_length(pw) < 8 then raise exception 'Password must be at least 8 characters'; end if;
+
+  insert into auth.users(
+    instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+    confirmation_token, recovery_token, email_change_token_new, email_change
+  )
+  values (
+    '00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated', em,
+    extensions.crypt(pw, extensions.gen_salt('bf')), now(),
+    '{"provider":"email","providers":["email"],"created_by":"trusted_tool"}'::jsonb,
+    jsonb_build_object(
+      'full_name', nm, 'school_id', sid, 'contact_number', v_cnt,
+      'member_type', mt, 'department', v_dept, 'program', v_prog,
+      'major', v_maj, 'course', coalesce(v_crs, v_prog, v_dept),
+      'year_level', v_yl, 'section', v_sec, 'consent', 'true'
+    ),
+    now(), now(), '', '', '', ''
+  );
+
+  insert into auth.identities(id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
+  values (gen_random_uuid(), uid, jsonb_build_object('sub', uid::text, 'email', em), 'email', uid::text, now(), now(), now());
+
+  if v_role = 'organizer' then
+    perform set_config('eventsync.allow_role_change', '1', true);
+    update public.profiles set role = 'organizer' where id = uid;
+    perform set_config('eventsync.allow_role_change', '0', true);
+  end if;
+
+  perform public.log_activity('user.created_by_admin', 'profile', uid::text, jsonb_build_object('email', em, 'role', v_role));
+  return jsonb_build_object('id', uid, 'email', em, 'role', v_role);
+end $$;
+grant execute on function public.admin_create_user(jsonb) to authenticated;
+
+create or replace function public.admin_update_user(p_user_id uuid, p jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  target public.profiles;
+  nm     text := btrim(coalesce(p->>'full_name', ''));
+  sid    text := nullif(btrim(coalesce(p->>'school_id', '')), '');
+  v_role text := lower(btrim(coalesce(p->>'role', '')));
+  mt     text := nullif(btrim(coalesce(p->>'member_type', '')), '');
+  v_dept text := nullif(btrim(coalesce(p->>'department', '')), '');
+  v_prog text := nullif(btrim(coalesce(p->>'program', '')), '');
+  v_maj  text := nullif(btrim(coalesce(p->>'major', '')), '');
+  v_crs  text := nullif(btrim(coalesce(p->>'course', '')), '');
+  v_yl   smallint := case when mt = 'student' and coalesce(p->>'year_level', '') ~ '^[1-4]$' then (p->>'year_level')::smallint else null end;
+  v_sec  text := nullif(btrim(coalesce(p->>'section', '')), '');
+  v_cnt  text := nullif(btrim(coalesce(p->>'contact_number', '')), '');
+begin
+  if not public.is_admin() then raise exception 'Admin only'; end if;
+  select * into target from public.profiles where id = p_user_id;
+  if not found then raise exception 'User not found'; end if;
+  if char_length(nm) < 2 then raise exception 'Full name is required'; end if;
+
+  if sid is not null then
+    if sid !~ '^[A-Za-z0-9-]{4,20}$' then raise exception 'School ID must be 4-20 letters, numbers or dashes'; end if;
+    if exists (select 1 from public.profiles where lower(school_id) = lower(sid) and id <> p_user_id) then
+      raise exception 'This school ID is already used by another account';
+    end if;
+  end if;
+
+  if v_role = '' then v_role := target.role; end if;
+  if v_role not in ('user', 'organizer', 'admin') then raise exception 'Invalid role'; end if;
+  if p_user_id = auth.uid() and v_role <> target.role then
+    raise exception 'You cannot change your own role';
+  end if;
+
+  perform set_config('eventsync.allow_role_change', '1', true);
+  update public.profiles
+     set full_name            = nm,
+         school_id            = sid,
+         contact_number       = v_cnt,
+         member_type          = mt,
+         department           = v_dept,
+         program              = v_prog,
+         major                = v_maj,
+         course               = coalesce(v_crs, v_prog, v_dept),
+         program_needs_update = false,
+         year_level           = v_yl,
+         section              = v_sec,
+         role                 = v_role
+   where id = p_user_id
+   returning * into target;
+  perform set_config('eventsync.allow_role_change', '0', true);
+
+  perform public.log_activity('user.updated_by_admin', 'profile', p_user_id::text, jsonb_build_object('email', target.email, 'role', target.role));
+  return to_jsonb(target);
+end $$;
+grant execute on function public.admin_update_user(uuid, jsonb) to authenticated;
+
+create or replace function public.admin_delete_user(p_user_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  target public.profiles;
+begin
+  if not public.is_admin() then raise exception 'Admin only'; end if;
+  if p_user_id = auth.uid() then raise exception 'You cannot delete your own account'; end if;
+
+  select * into target from public.profiles where id = p_user_id;
+  if not found then raise exception 'User not found'; end if;
+
+  perform public.log_activity('user.deleted_by_admin', 'profile', p_user_id::text, jsonb_build_object('email', target.email, 'full_name', target.full_name, 'role', target.role));
+  delete from auth.users where id = p_user_id;
+end $$;
+grant execute on function public.admin_delete_user(uuid) to authenticated;
+
 -- Fix profile update trigger permission so authenticated users can save program changes on My Profile
 grant execute on function public.resolve_program_selection(text, text, text, text, text) to authenticated;
 alter function public.validate_profile_update() security definer;

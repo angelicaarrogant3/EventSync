@@ -3,8 +3,10 @@ import { boot } from '/js/core/boot.js';
 import { $, esc, fmt, toast, errMsg, watch } from '/js/core/ui.js';
 import {
   PROGRAM_SCHOOLS, ADMIN_OFFICE_SCHOOL, OTHER_SCHOOL_NAME, NEEDS_UPDATE_LABEL,
+  MEMBER_TYPES, YEAR_LEVELS, validateProgramSelection,
   formatProgramShort, formatProgramFull
 } from '/js/shared/participant-options.js';
+import { mountProgramSelector } from '/js/shared/program-selector.js';
 
 const { profile: me } = await boot('admin', 'users');
 
@@ -116,12 +118,14 @@ function populatePrograms() {
 
 function filteredSorted() {
   const q = $('#q').value.trim().toLowerCase();
+  const rl = $('#fRole')?.value || '';
   const st = $('#fStatus').value, sc = $('#fSchool').value, pr = $('#fProgram').value;
   const list = allUsers.filter(u => {
+    if (rl && u.role !== rl) return false;
     if (st && u.status !== st) return false;
     if (sc === NEEDS_UPDATE_LABEL ? !u.program_needs_update : (sc && u.department !== sc)) return false;
     if (pr === NEEDS_UPDATE_LABEL ? !u.program_needs_update : (pr && u.program !== pr)) return false;
-    if (q && !`${u.full_name} ${u.email} ${u.school_id || ''} ${u.department || ''} ${u.program || ''} ${u.major || ''}`.toLowerCase().includes(q)) return false;
+    if (q && !`${u.full_name} ${u.email} ${u.school_id || ''} ${u.department || ''} ${u.program || ''} ${u.major || ''} ${u.role || ''}`.toLowerCase().includes(q)) return false;
     return true;
   });
   list.sort((a, b) => {
@@ -135,31 +139,40 @@ function filteredSorted() {
 }
 
 const COLS = [
-  ['full_name', 'Full Name'], ['school_id', 'School ID'], ['email', 'Email'],
+  ['full_name', 'Full Name'], ['role', 'Role'], ['school_id', 'School ID'], ['email', 'Email'],
   ['department', 'School'], ['course', 'Program (Major) / Year'], ['status', 'Status'],
-  ['created_at', 'Signed up'], ['events_registered', 'Registered'], ['events_attended', 'Attended']
+  ['events_registered', 'Reg'], ['events_attended', 'Att']
 ];
 
 function render() {
   const rows = filteredSorted();
   const visible = rows.slice(0, shown);
   if (!rows.length) {
-    $('#list').innerHTML = '<div class="card empty">No matching participants found.</div>';
+    $('#list').innerHTML = '<div class="card empty">No matching users found.</div>';
     $('#pager').hidden = true;
     return;
   }
   const arrow = k => sortKey === k ? (sortDir === 1 ? ' ▲' : ' ▼') : '';
-  $('#list').innerHTML = `<div class="tablewrap users-table"><table><thead><tr>${COLS.map(([k, l]) => `<th class="sort" data-sort="${k}">${l}${arrow(k)}</th>`).join('')}</tr></thead><tbody>${visible.map(u => `
+  $('#list').innerHTML = `<div class="tablewrap users-table"><table><thead><tr>${COLS.map(([k, l]) => `<th class="sort" data-sort="${k}">${l}${arrow(k)}</th>`).join('')}<th>Actions</th></tr></thead><tbody>${visible.map(u => `
     <tr class="clickable" data-uid="${u.id}">
-      <td data-label="Full Name"><b>${esc(u.full_name || '—')}</b>${u.role === 'organizer' ? ' <span class="badge ok">Organizer</span>' : ''}${u.member_type ? `<br><small class="muted">${esc(u.member_type)}</small>` : ''}</td>
+      <td data-label="Full Name"><b>${esc(u.full_name || '—')}</b>${u.member_type ? `<br><small class="muted">${esc(u.member_type)}</small>` : ''}</td>
+      <td data-label="Role"><span class="badge ${u.role === 'organizer' ? 'ok' : ''}">${u.role === 'organizer' ? 'Organizer' : 'Participant'}</span></td>
       <td data-label="School ID">${esc(u.school_id || '—')}</td>
       <td data-label="Email">${esc(u.email)}</td>
       <td data-label="School">${esc(schoolLabel(u))}</td>
       <td data-label="Program (Major) / Year" title="${esc(formatProgramFull(u))}">${esc(courseYear(u))}</td>
       <td data-label="Status"><span class="badge ${u.status === 'active' ? 'ok' : 'cancelled'}">${u.status}</span></td>
-      <td data-label="Signed up">${fmt(u.created_at)}</td>
-      <td data-label="Registered">${u.events_registered}</td>
-      <td data-label="Attended">${u.events_attended}</td>
+      <td data-label="Reg">${u.events_registered}</td>
+      <td data-label="Att">${u.events_attended}</td>
+      <td data-label="Actions">
+        <div class="row" style="gap:.35rem">
+          ${u.role === 'organizer'
+            ? `<button type="button" class="btn sm ghost" data-quick-role="user" data-uid="${u.id}" data-name="${esc(u.full_name || u.email)}" title="Revoke Event Organizer rights">Revoke Organizer</button>`
+            : `<button type="button" class="btn sm ok" data-quick-role="organizer" data-uid="${u.id}" data-name="${esc(u.full_name || u.email)}" title="Grant Event Organizer rights directly">Make Organizer</button>`}
+          <button type="button" class="btn sm ghost" data-edit-uid="${u.id}">Edit</button>
+          <button type="button" class="btn sm danger" data-del-uid="${u.id}" data-name="${esc(u.full_name || u.email)}">Delete</button>
+        </div>
+      </td>
     </tr>`).join('')}</tbody></table></div>`;
 
   if (rows.length > visible.length) {
@@ -171,22 +184,53 @@ function render() {
 }
 
 /* ---- sorting, filtering, pagination ---- */
-$('#list').addEventListener('click', ev => {
+$('#list').addEventListener('click', async ev => {
   const th = ev.target.closest('th[data-sort]');
   if (th) {
     const k = th.dataset.sort;
     if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = k === 'created_at' ? -1 : 1; }
     return render();
   }
+  const roleBtn = ev.target.closest('button[data-quick-role]');
+  if (roleBtn) {
+    ev.stopPropagation();
+    const nextRole = roleBtn.dataset.quickRole;
+    const nm = roleBtn.dataset.name;
+    const msg = nextRole === 'organizer'
+      ? `Make "${nm}" an Event Organizer immediately (without requiring a role request)?`
+      : `Revoke Event Organizer rights from "${nm}" and return them to Participant?`;
+    if (!confirm(msg)) return;
+    roleBtn.disabled = true;
+    const { error } = await supabase.rpc('admin_set_user_role', { p_user_id: roleBtn.dataset.uid, p_role: nextRole });
+    if (error) { roleBtn.disabled = false; return toast(errMsg(error), 'error'); }
+    toast(nextRole === 'organizer' ? `${nm} is now an Event Organizer` : `Organizer rights revoked for ${nm}`, 'success');
+    return load();
+  }
+  const delBtn = ev.target.closest('button[data-del-uid]');
+  if (delBtn) {
+    ev.stopPropagation();
+    const nm = delBtn.dataset.name;
+    if (!confirm(`Permanently delete user "${nm}" and all their registrations and records?`)) return;
+    delBtn.disabled = true;
+    const { error } = await supabase.rpc('admin_delete_user', { p_user_id: delBtn.dataset.delUid });
+    if (error) { delBtn.disabled = false; return toast(errMsg(error), 'error'); }
+    toast(`Deleted ${nm}`, 'info');
+    return load();
+  }
+  const editBtn = ev.target.closest('button[data-edit-uid]');
+  if (editBtn) {
+    ev.stopPropagation();
+    return openDetail(editBtn.dataset.editUid, true);
+  }
   const tr = ev.target.closest('tr[data-uid]');
-  if (tr) openDetail(tr.dataset.uid);
+  if (tr) openDetail(tr.dataset.uid, false);
 });
 $('#fSchool').addEventListener('change', () => { populatePrograms(); shown = PAGE_SIZE; render(); });
-['#q', '#fStatus', '#fProgram'].forEach(s => $(s).addEventListener(s === '#q' ? 'input' : 'change', () => { shown = PAGE_SIZE; render(); }));
+['#q', '#fRole', '#fStatus', '#fProgram'].forEach(s => $(s)?.addEventListener(s === '#q' ? 'input' : 'change', () => { shown = PAGE_SIZE; render(); }));
 $('#loadMore').onclick = () => { shown += PAGE_SIZE; render(); };
 
-/* ---- detail panel + actions ---- */
-async function openDetail(uid) {
+/* ---- detail panel + CRUD actions ---- */
+async function openDetail(uid, startInEditMode = false) {
   const dlg = $('#detailDlg');
   $('#detailBody').innerHTML = '<p class="muted">Loading...</p>';
   dlg.showModal();
@@ -198,7 +242,7 @@ async function openDetail(uid) {
   const roleLabel = u.role === 'organizer' ? 'Event Organizer' : u.role === 'admin' ? 'Administrator' : 'Participant';
   $('#detailBody').innerHTML = `
     <div class="pagehead" style="margin-bottom:.5rem">
-      <div><h2>${esc(u.full_name || u.email)}</h2><p class="muted sm">${esc(u.email)} · ${roleLabel}</p></div>
+      <div><h2>${esc(u.full_name || u.email)}</h2><p class="muted sm">${esc(u.email)} · <span class="badge ${u.role === 'organizer' ? 'ok' : ''}">${roleLabel}</span></p></div>
       <span class="badge ${u.status === 'active' ? 'ok' : 'cancelled'}">${u.status}</span>
     </div>
     <div class="two sm" style="margin-bottom:1rem">
@@ -211,13 +255,47 @@ async function openDetail(uid) {
       <div><b>Signed up:</b> ${fmt(u.created_at)}</div>
       <div><b>Role:</b> ${roleLabel}</div>
     </div>
-    <div class="row" style="margin-bottom:1rem">
-      <button class="btn sm ${u.status === 'active' ? 'danger' : 'ok'}" id="toggleStatus" ${isSelf ? 'disabled title="You cannot deactivate your own account"' : ''}>
-        ${u.status === 'active' ? 'Deactivate account' : 'Reactivate account'}
-      </button>
-      ${!isSelf ? `<button class="btn sm ghost" id="toggleRoleBtn">${u.role === 'organizer' ? 'Return to Participant' : 'Promote to Organizer'}</button>` : ''}
+    <div class="row" style="margin-bottom:1rem;flex-wrap:wrap;gap:.45rem">
+      ${!isSelf ? `<button class="btn sm ${u.role === 'organizer' ? 'ghost' : 'ok'}" id="toggleRoleBtn">${u.role === 'organizer' ? 'Revoke Organizer Role' : 'Make Event Organizer'}</button>` : ''}
+      <button class="btn sm ghost" id="editProfileBtn">Edit user &amp; role</button>
       <button class="btn sm ghost" id="resetPwBtn">Reset password</button>
+      <button class="btn sm ${u.status === 'active' ? 'danger' : 'ok'}" id="toggleStatus" ${isSelf ? 'disabled title="You cannot deactivate your own account"' : ''}>
+        ${u.status === 'active' ? 'Deactivate' : 'Reactivate'}
+      </button>
+      ${!isSelf ? `<button class="btn sm danger" id="deleteUserBtn">Delete user</button>` : ''}
     </div>
+
+    <form id="editUserForm" ${startInEditMode ? '' : 'hidden'} style="margin-bottom:1rem;padding:.85rem;border:1px solid var(--line);border-radius:10px">
+      <h3 style="margin:0 0 .65rem;font-size:.98rem">Edit User Profile &amp; Role</h3>
+      <div class="two">
+        <div><label for="euName">Full name *</label><input id="euName" required minlength="2" value="${esc(u.full_name || '')}"></div>
+        <div><label for="euRole">Role</label>
+          <select id="euRole" ${isSelf ? 'disabled' : ''}>
+            <option value="user" ${u.role === 'user' ? 'selected' : ''}>Participant</option>
+            <option value="organizer" ${u.role === 'organizer' ? 'selected' : ''}>Event Organizer</option>
+          </select>
+        </div>
+        <div><label for="euSchoolId">School / Employee ID</label><input id="euSchoolId" value="${esc(u.school_id || '')}" placeholder="e.g., 21-1-0123"></div>
+        <div><label for="euContact">Contact number</label><input id="euContact" value="${esc(u.contact_number || '')}" placeholder="09XXXXXXXXX"></div>
+        <div><label for="euMemberType">Member type</label>
+          <select id="euMemberType">
+            <option value="">Select…</option>
+            ${MEMBER_TYPES.map(t => `<option value="${t.value}" ${u.member_type === t.value ? 'selected' : ''}>${t.label}</option>`).join('')}
+          </select>
+        </div>
+        <div><label for="euYear">Year level (students)</label>
+          <select id="euYear">
+            <option value="">—</option>
+            ${YEAR_LEVELS.map(y => `<option value="${y.value}" ${Number(u.year_level) === Number(y.value) ? 'selected' : ''}>${y.label}</option>`).join('')}
+          </select>
+        </div>
+        <div><label for="euSection">Section</label><input id="euSection" value="${esc(u.section || '')}"></div>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:.75rem">
+        <button type="submit" class="btn sm">Save changes</button>
+      </div>
+    </form>
+
     <form id="resetForm" hidden style="margin-bottom:1rem;padding:.75rem;border:1px solid var(--line);border-radius:10px">
       <label for="tempPw">Temporary password (min 8 chars)</label>
       <div class="row"><input id="tempPw" type="text" minlength="8" required placeholder="Enter temporary password" style="flex:1"><button class="btn sm">Set password</button></div>
@@ -231,15 +309,49 @@ async function openDetail(uid) {
     <div class="row" style="justify-content:flex-end;margin-top:1rem"><button type="button" class="btn ghost" id="dClose">Close</button></div>`;
 
   $('#dClose').onclick = () => dlg.close();
+  $('#editProfileBtn').onclick = () => { $('#editUserForm').hidden = !$('#editUserForm').hidden; };
+  $('#editUserForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const payload = {
+      full_name: $('#euName').value.trim(),
+      role: $('#euRole').value,
+      school_id: $('#euSchoolId').value.trim() || null,
+      contact_number: $('#euContact').value.trim() || null,
+      member_type: $('#euMemberType').value || null,
+      department: u.department,
+      program: u.program,
+      major: u.major,
+      course: u.course,
+      year_level: $('#euYear').value || null,
+      section: $('#euSection').value.trim() || null
+    };
+    const { error: uErr } = await supabase.rpc('admin_update_user', { p_user_id: u.id, p: payload });
+    if (uErr) return toast(errMsg(uErr), 'error');
+    toast('User updated', 'success');
+    dlg.close(); load();
+  };
+
   const roleBtn = $('#toggleRoleBtn');
   if (roleBtn) {
     roleBtn.onclick = async () => {
       const nextRole = u.role === 'organizer' ? 'user' : 'organizer';
       const label = nextRole === 'organizer' ? 'Event Organizer' : 'Participant';
-      if (!confirm(`Change ${u.full_name || u.email}'s role to ${label}?`)) return;
+      if (!confirm(nextRole === 'organizer'
+        ? `Make ${u.full_name || u.email} an Event Organizer immediately?`
+        : `Revoke Event Organizer rights from ${u.full_name || u.email}?`)) return;
       const { error: rErr } = await supabase.rpc('admin_set_user_role', { p_user_id: u.id, p_role: nextRole });
       if (rErr) return toast(errMsg(rErr), 'error');
       toast(`Role updated to ${label}`, 'success');
+      dlg.close(); load();
+    };
+  }
+  const delBtn = $('#deleteUserBtn');
+  if (delBtn) {
+    delBtn.onclick = async () => {
+      if (!confirm(`Permanently delete ${u.full_name || u.email} and all their registrations?`)) return;
+      const { error: dErr } = await supabase.rpc('admin_delete_user', { p_user_id: u.id });
+      if (dErr) return toast(errMsg(dErr), 'error');
+      toast('User deleted', 'info');
       dlg.close(); load();
     };
   }
@@ -259,6 +371,61 @@ async function openDetail(uid) {
     if (e3) return toast(errMsg(e3), 'error');
     toast('Temporary password set. User must change it on next login.', 'success');
     $('#resetForm').hidden = true; $('#resetForm').reset();
+  };
+}
+
+/* ---- Create User / Event Organizer modal ---- */
+const cuDlg = $('#createUserDlg');
+if (cuDlg) {
+  $('#cuMemberType').innerHTML = '<option value="">Select…</option>' + MEMBER_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+  $('#cuYear').innerHTML = '<option value="">Select…</option>' + YEAR_LEVELS.map(y => `<option value="${y.value}">${y.label}</option>`).join('');
+  const cuProg = mountProgramSelector($('#cuProgMount'), { idPrefix: 'cu', memberType: '' });
+  $('#cuMemberType').onchange = () => {
+    const mt = $('#cuMemberType').value;
+    $('#cuYearWrap').hidden = mt !== 'student';
+    cuProg.setMemberType(mt);
+  };
+  $('#newUserBtn').onclick = () => {
+    $('#createUserForm').reset();
+    $('#cuYearWrap').hidden = true;
+    cuProg.setMemberType('');
+    cuDlg.showModal();
+  };
+  $('#cuCancel').onclick = () => cuDlg.close();
+  $('#createUserForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const mt = $('#cuMemberType').value;
+    const pv = cuProg.values();
+    let dept = pv.department || null, prog = pv.program || null, maj = pv.major || null, crs = pv.course || null;
+    if (mt) {
+      const vRes = validateProgramSelection({ member_type: mt, ...pv });
+      if (vRes.error) { cuProg.showErrors({ [vRes.field || 'department']: vRes.error }); return; }
+      dept = vRes.department; prog = vRes.program; maj = vRes.major; crs = vRes.course;
+    }
+    const btn = $('#cuSubmit');
+    btn.disabled = true;
+    const { error } = await supabase.rpc('admin_create_user', {
+      p: {
+        full_name: $('#cuName').value.trim(),
+        role: $('#cuRole').value,
+        email: $('#cuEmail').value.trim(),
+        password: $('#cuPassword').value,
+        school_id: $('#cuSchoolId').value.trim() || null,
+        contact_number: $('#cuContact').value.trim() || null,
+        member_type: mt || null,
+        department: dept,
+        program: prog,
+        major: maj,
+        course: crs,
+        year_level: mt === 'student' ? $('#cuYear').value : null,
+        section: $('#cuSection').value.trim() || null
+      }
+    });
+    btn.disabled = false;
+    if (error) return toast(errMsg(error), 'error');
+    toast(`Created ${$('#cuRole').value === 'organizer' ? 'Event Organizer' : 'Participant'} account`, 'success');
+    cuDlg.close();
+    load();
   };
 }
 
