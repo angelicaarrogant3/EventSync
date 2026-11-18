@@ -184,11 +184,6 @@ function openForm(e) {
     $('#certEnabled').checked = e ? e.certificates_enabled !== false : true;
     $('#certSetupWrap').hidden = !$('#certEnabled').checked;
     $('#certTemplate').value = e?.certificate_template_id || DEFAULT_TEMPLATE_ID;
-    $('#orgOffice').value = e?.organizing_office || '';
-    $('#sig1Name').value = e?.signatory_1_name || '';
-    $('#sig1Title').value = e?.signatory_1_title || '';
-    $('#sig2Name').value = e?.signatory_2_name || '';
-    $('#sig2Title').value = e?.signatory_2_title || '';
   }
   if ($('#eligSchool')) {
     $('#eligSchool').value = e?.allowed_schools?.[0] || '';
@@ -390,11 +385,6 @@ $('#form').onsubmit = async ev => {
     feedback_audience: $('#fbAudience').value || 'attended',
     certificates_enabled: $('#certEnabled') ? $('#certEnabled').checked : true,
     certificate_template_id: $('#certTemplate')?.value || DEFAULT_TEMPLATE_ID,
-    organizing_office: $('#orgOffice')?.value.trim() || null,
-    signatory_1_name: $('#sig1Name')?.value.trim() || null,
-    signatory_1_title: $('#sig1Title')?.value.trim() || null,
-    signatory_2_name: $('#sig2Name')?.value.trim() || null,
-    signatory_2_title: $('#sig2Title')?.value.trim() || null,
     allowed_schools: $('#eligSchool')?.value ? [$('#eligSchool').value] : null,
     allowed_programs: $('#eligProgram')?.value ? [$('#eligProgram').value] : null,
     allowed_year_levels: (() => {
@@ -431,17 +421,6 @@ $('#form').onsubmit = async ev => {
   if (error) { btn.disabled = false; return toast(errMsg(error), 'error'); }
 
   const targetId = editingId || saved.id;
-
-  // Upload optional signature images if selected
-  for (const [elId, col] of [['sig1File', 'signatory_1_sig_path'], ['sig2File', 'signatory_2_sig_path']]) {
-    const sf = $(`#${elId}`)?.files?.[0];
-    if (sf) {
-      const ext = sf.type === 'image/png' ? 'png' : 'jpg';
-      const sigPath = `${profile.id}/sig-${targetId}-${col}.${ext}`;
-      const { error: sigErr } = await supabase.storage.from('certificate-templates').upload(sigPath, sf, { contentType: sf.type, upsert: true });
-      if (!sigErr) await supabase.from('events').update({ [col]: sigPath }).eq('id', targetId);
-    }
-  }
 
   if (selectedFile) {
     $('#imgProg').classList.add('show');

@@ -486,8 +486,6 @@ const QR_CORNER_PRESETS = {
 
 /**
  * One-Click Certificate Template Upload & Name Placement Editor Modal.
- * Click anywhere on the certificate preview (or use the sliders) to position the Participant Name;
- * the Verification QR & Certificate ID are placed automatically in the chosen corner.
  */
 export async function openTemplateEditorModal({ profile, initialTemplate = null, onSaved = null }) {
   let dlg = document.getElementById('tplEditorDlg');
@@ -515,7 +513,6 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
   tpl.width = 2000;
   tpl.height = 1414;
 
-  // Extract or initialize the Participant Name box + Corner QR preset
   let nameBox = (tpl.layout || []).find(f => f.type === 'participant_name') || {
     type: 'participant_name', x: 300, y: 610, width: 1400, height: 100,
     font: 'script', size: 68, color: '#991b1b', alignment: 'center', auto_shrink: true
@@ -545,14 +542,15 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     ];
   }
 
-  const centerX = () => Math.round((nameBox.x + nameBox.width / 2) / 20); // 0..100%
-  const centerY = () => Math.round((nameBox.y + nameBox.height / 2) / 14.14); // 0..100%
+  const centerX = () => Math.round((nameBox.x + nameBox.width / 2) / 20);
+  const centerY = () => Math.round((nameBox.y + nameBox.height / 2) / 14.14);
+  const hasSavedFile = !!(tpl.file_path && tpl.mime_type !== 'system/default');
 
   dlg.innerHTML = `
-    <div class="pagehead" style="margin-bottom:.75rem">
+    <div class="pagehead" style="margin-bottom:.65rem">
       <div>
         <h2 style="margin:0">${tpl.id ? 'Edit Certificate Design' : 'Upload Certificate Design'}</h2>
-        <p class="muted sm" style="margin:.15rem 0 0">Upload your certificate image and <b>click directly on the name line</b> (or use the sliders) to position the participant's name.</p>
+        <p class="muted sm" style="margin:.15rem 0 0"><b>Reminder:</b> Upload your complete certificate image (with event title, date, venue, and signatures already included) and leave <b>only the Participant's Name blank</b>. Click on the blank line below to position the participant's name.</p>
       </div>
       <div class="row">
         <button type="button" class="btn ghost sm" id="tplDlSample">Download blank sample</button>
@@ -565,7 +563,8 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
         <input id="tplName" required minlength="2" placeholder="e.g., Seminar 2026 Certificate" value="${esc(tpl.name)}">
       </div>
       <div>
-        <label for="tplFile">Upload certificate image (PNG, JPG, or 1-page PDF · max 10 MB)</label>
+        <label for="tplFile">${hasSavedFile ? 'Replace certificate image (optional)' : 'Upload certificate image (PNG, JPG, or 1-page PDF · max 10 MB)'}</label>
+        ${hasSavedFile ? `<p class="sm" id="tplSavedFileStatus" style="margin:.15rem 0 .35rem;color:#22c55e"><b>✓ Certificate image already uploaded</b> — choose a file below only if you want to replace it.</p>` : ''}
         <input id="tplFile" type="file" accept="image/png,image/jpeg,application/pdf">
         <p class="muted sm" id="tplFileWarn" style="margin:.2rem 0 0;color:#f59e0b"></p>
       </div>
@@ -652,7 +651,6 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
       ctx.clearRect(0, 0, 2000, 1414);
       ctx.drawImage(rendered, 0, 0);
 
-      // Subtle dashed highlight around the Participant Name area so user sees the active placement line
       ctx.save();
       ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
       ctx.lineWidth = 3;
@@ -676,7 +674,6 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
     refreshPreview();
   }
 
-  // Click or drag directly on the certificate preview to place the name!
   let pointerDown = false;
   const handleStagePointer = ev => {
     const rect = stageWrap.getBoundingClientRect();
