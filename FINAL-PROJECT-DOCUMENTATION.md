@@ -1,481 +1,376 @@
-# EventSync — Final Project Documentation
-**Course:** Parallel and Distributed Computing (PDC)  
-**Project Type:** Development of an Interactive Distributed System  
-**Approved System:** **EventSync** — Distributed Event Registration and Attendance Management System (BiPSU Main Campus Edition)
+# EventSync: A Distributed Event Registration and Attendance Management System
+
+**Final Project Documentation for Parallel and Distributed Computing**
+
+- **Submitted to:** Mr. Bruce Casiano
+- **Submitted by:**
+  - Arrogante, Angeline D.
+  - Coma, Apple M.
+  - Estovio, Richard Jr.
+  - Juntilla, Kevin Guiller S.
+  - Mondelo, Carmela C.
+  - Ramos, Jovans Jay A.
+- **Course / Section:** BSCS-4B
+- **Date Submitted:** November 2026
 
 ---
 
-## Table of Contents
-1. [Project Proposal (Three Proposed System Titles)](#1-project-proposal)
-2. [System Documentation](#2-system-documentation)
-3. [System Architecture Diagram](#3-system-architecture-diagram)
-4. [Network Communication Diagram](#4-network-communication-diagram)
-5. [Database Design & Entity Relationship Diagram (ERD)](#5-database-design--erd)
-6. [Source Code Overview](#6-source-code-overview)
-7. [User Manual (Installation, Configuration & Usage)](#7-user-manual)
-8. [Testing Documentation (Automated & Multi-Laptop Distributed Tests)](#8-testing-documentation)
-9. [Final Presentation, Failure & Recovery Demo, and Defense Q&A](#9-final-presentation--defense-guide)
+## PART II. SYSTEM DOCUMENTATION
+
+### 2.1 System Overview
+
+EventSync is a web-based distributed event registration and attendance management system designed to simplify the organization, monitoring, and documentation of school events, seminars, workshops, and other institutional activities at Biliran Province State University (BiPSU) Main Campus. The system supports three user roles—**Participant**, **Event Organizer**, and **Administrator**—and provides a unified platform for event publication, eligibility-checked online registration, digital QR pass and short-code issuance, Time-In and Time-Out attendance verification, real-time monitoring, post-event feedback, and verified attendance certificates.
+
+Every new account starts as a **Participant** (student, faculty, or staff). Participants who wish to host events can submit an **Event Organizer** role request from their profile, which becomes active once reviewed and approved by an Administrator. Approved Event Organizers retain their participant capabilities for other organizers' events while gaining access to an **Organizer View** to create and manage their own events, scan attendance, monitor live arrivals, configure certificate templates, and export official reports. Administrators oversee all events, manage user accounts and role requests, and monitor system-wide activity logs.
+
+EventSync utilizes HTML5, CSS3, and modular ES6 JavaScript for its frontend interface, while Supabase provides PostgreSQL database management, Row-Level Security (RLS), authentication, private/public file storage, and real-time data synchronization. The system implements a multi-tier client–server architecture in which four interconnected client nodes—accessed through laptops and cellphones—perform designated functions: **Admin / Organizer Management Node**, **Participant Node**, **QR Scanner Node**, and **Live Monitor Node**. Through a shared cloud-based database, transactional Remote Procedure Calls (RPCs), WebSocket-based real-time subscriptions, and an offline scan queue with automatic resynchronization, transactions performed on one device are coordinated and reflected across all other authorized devices.
+
+### 2.2 Problem Statement
+
+Traditional event registration and attendance monitoring in educational institutions often rely on manual registration forms, paper-based sign-in and sign-out sheets, and separate spreadsheets. These manual processes frequently result in long queues at venue entrances, duplicate or illegible entries, proxy sign-ins, difficulty tracking late arrivals or early departures, and significant delays in consolidating attendance reports and issuing certificates of participation. Event organizers and school administrators also face challenges monitoring live turnout across multiple entrance stations and verifying whether only eligible students from specific schools, programs, or year levels have registered.
+
+EventSync addresses these challenges by providing a centralized distributed platform for online registration, QR code and 8-character pass code attendance verification (supporting both Time-In and Time-Out), automatic late-arrival labeling, real-time multi-device monitoring, print-ready attendance sheets, post-event feedback distribution, and automated certificate issuance with public QR verification.
+
+### 2.3 General Objectives
+
+The general objective of EventSync is to develop a distributed event registration and attendance management system that enables multiple interconnected devices to communicate, exchange information, and coordinate operations in real time while ensuring accurate attendance tracking, role-based access control, and reliable institutional reporting at BiPSU Main Campus.
+
+### 2.4 Specific Objectives
+
+Specifically, the system aims to:
+
+1. Develop a role-based platform supporting **Participants**, **Event Organizers** (via an admin-approved role request workflow), and **Administrators** for creating, managing, and publishing institutional events with optional school, program, and year-level eligibility restrictions.
+2. Implement online participant registration with unique QR code passes and 8-character alphanumeric verification codes, validated against the official BiPSU Main Campus program catalog.
+3. Enable real-time data synchronization among interconnected laptops and cellphones using Supabase Realtime (WebSocket `postgres_changes` subscriptions).
+4. Provide QR code and manual short-code attendance verification with **Time-In** and **Time-Out** modes, full-screen scan outcome modals, configurable late-arrival labeling (`Present (Late)`), self-scan prevention, duplicate prevention, and an offline scan queue that automatically synchronizes when internet connectivity is restored.
+5. Generate automated attendance sheets and reports in Excel (`.xlsx`), CSV, PDF, and clean A4 landscape print formats, along with post-event Google Form feedback links and downloadable **Certificates of Participation** verified through a public verification page (`/verify/<certificate_code>`).
+
+### 2.5 Scope and Limitations
+
+#### Scope
+EventSync is designed for managing school events, seminars, workshops, and institutional activities at Biliran Province State University (BiPSU) Main Campus. The system covers:
+- **Three user roles:** Participants (students, faculty, and staff), Event Organizers (approved via role requests and scoped to their own events), and Administrators (system-wide oversight).
+- **Institutional profile management:** Validated against the official BiPSU Main Campus schools, academic programs, majors, year levels, sections, and administrative offices.
+- **Event management & eligibility rules:** Event schedules, registration windows, check-in grace periods, late-arrival thresholds, capacity limits, event banners, and optional restrictions by school/office, program, and year level.
+- **Attendance verification:** Camera-based QR scanning and 8-character short-code manual verification supporting **Time-In** and **Time-Out** modes, full-screen visual/audio feedback modals, and an offline scan queue with idempotent resynchronization.
+- **Post-event features:** Automated **Attendance Sheet** generation (Excel, CSV, PDF, and A4 landscape printout with school/office breakdown), Google Form feedback gating (*People who attended* or *Everyone who registered*, plus early-open support), and custom-designed **Certificates of Participation** with one-click name placement and public verification (`/verify/<certificate_code>`).
+
+#### Limitations
+- EventSync requires an internet connection for account authentication, online event registration, real-time monitor updates, and certificate downloads. While the QR Scanner Node supports queuing scans locally during temporary network drops and syncing them upon reconnection, new user sign-ups and initial event registrations require active connectivity.
+- Camera-based QR code scanning requires a device with a working camera and a secure browser context (`HTTPS` or `localhost`); devices without camera access can use the 8-character short pass code for manual verification.
+- Post-event feedback uses external Google Forms links configured by the organizer; EventSync controls visibility of the link based on event completion and attendance status but does not read individual Google Form responses.
+- The system is tailored for BiPSU Main Campus institutional events and does not include payment processing or paid ticket sales.
+
+### 2.6 System Features and Functionalities
+
+| Feature | Description |
+| :--- | :--- |
+| **1. Role-Based Access & Organizer Role Requests** | Every new account registers as a **Participant**. Participants can submit an **Event Organizer** request from their profile; Administrators review, approve, or reject requests from the Users page. Approved Organizers get a **Participant View ↔ Organizer View** switch to manage their own events while still attending other organizers' events. |
+| **2. Event Management & Eligibility Restrictions** | Organizers and Administrators can create, edit, publish, unpublish, and cancel events with banner images, capacities, registration windows, check-in grace windows, *"Mark as late after (min)"* thresholds, and optional eligibility restrictions by **School/Office**, **Program**, and **Year Level**. |
+| **3. Online Registration & Digital QR / Short-Code Pass** | Eligible participants can browse published events, view live remaining seat counts, and register online. Each registration generates a downloadable PNG **EventSync Pass** containing a unique QR code (`EVENTSYNC:<uuid>`) and a copyable **8-character short pass code** (e.g., `A3E39F4A`). |
+| **4. Time-In / Time-Out QR Scanner & Full-Screen Modal** | Scanner stations feature a **`[ Time In ]` / `[ Time Out ]`** mode switch, live camera QR decoding, and manual 8-character code verification. Every scan opens an arm's-length **full-screen outcome modal** (*CHECKED IN*, *CHECKED OUT*, *ALREADY CHECKED IN*, *ALREADY CHECKED OUT*, *NO TIME-IN RECORDED*, *NOT OPEN YET*, *ATTENDANCE CLOSED*, *WRONG EVENT*, *SELF-SCAN BLOCKED*, *SAVED OFFLINE*, or *INVALID QR*) with distinct audio and vibration feedback. |
+| **5. Offline Scan Queue & Idempotent Resync** | If a scanner device loses internet connectivity during an event, scans are saved locally in an **Offline Queue** with their exact scan timestamp and unique `scan_id`. When connectivity returns, `sync_offline_attendance` replays queued scans in chronological order without creating duplicates. |
+| **6. Late Attendance Labeling (`Present (Late)`)** | Computes whether a participant's Time-In occurred more than $N$ minutes after the event start time (using the actual scan timestamp, including for offline-synced scans). Late arrivals are labeled **`Present (Late)`** across the attendance sheet, Live Monitor, exports, and participant views while still counting toward total present attendance. |
+| **7. Real-Time Attendance Monitor** | Displays live registration totals, verified check-in counts, remaining pending attendees, attendance rate percentage, a real-time arrival/departure feed, and activity logs across all connected devices via Supabase Realtime. |
+| **8. Automated Reports & Clean A4 Print Sheet** | Generates official attendance sheets with *Time In*, *Time Out*, *Present / Present (Late) / Absent / Pending* statuses, summary totals (*Total Registered, Total Present, Total Late, Total Timed Out, Total Absent, Attendance Rate*), and an *Attendance by School / Office* breakdown. Supports Excel (`.xlsx`), CSV, PDF, and clean headerless A4 landscape printing. |
+| **9. Post-Event Google Form Feedback** | Organizers can attach a validated Google Forms URL to an event, choose who can answer (*People who attended* or *Everyone who registered*), or open feedback early. Eligible participants see a **Give feedback** button and notification banner once feedback is open. |
+| **10. Custom Attendance Certificates & Public Verification** | Organizers and Admins can upload custom certificate designs (PNG, JPG, or single-page PDF) and position the participant's name with a one-click live preview editor, or use the built-in BiPSU default template. Attended participants can download their **Certificate of Participation** (PDF/PNG) after the event ends. Each certificate carries a random non-sequential code (`CERT-2026-XXXXXXXX`) and QR code verifiable at `/verify/<certificate_code>`. |
 
 ---
 
-## 1. Project Proposal
+## PART III. SYSTEM ARCHITECTURE DIAGRAM
 
-Per Section II (*Initial Project Proposal*), three (3) distributed system proposals were prepared. **Proposal 1 (EventSync)** is the approved and implemented system.
+### 3.1 System Architecture
 
-### Proposal 1 (Approved): EventSync — Distributed Event Registration and Attendance Management System
-- **Proposed System Title:** EventSync: Distributed Event Registration and Attendance Management System
-- **System Description:** A real-time, multi-node web application built for school and campus events (tailored for Biliran Province State University – Main Campus). Participants register online from their own devices to receive a tamper-proof UUID-based QR pass, door staff verify attendance using live QR camera scanning or manual token entry, and organizers monitor turnout, manage users, and export formatted A4 attendance sheets in real time.
-- **Problem Addressed:** Traditional campus event registration relies on paper sign-up sheets or disconnected spreadsheets, causing long entrance queues, duplicate registrations, manual counting errors, inability to enforce seat capacities concurrently, and delayed post-event attendance reporting.
-- **Main Features:**
-  1. **Real-Time Event Management & Banners:** Admins create, edit, publish/unpublish, close, and delete events with 16:9 event poster/banner uploads, capacity limits, and registration deadlines.
-  2. **BiPSU Main Campus Program Registration & QR Pass Generation:** Participants sign up with official BiPSU School/College, Program, Major, Year Level, and School ID, register for published events with atomic seat-lock checks, and receive a downloadable PNG QR pass.
-  3. **Live QR Attendance Verification & Organizer Monitor:** Door scanner nodes verify QR passes (preventing duplicate check-ins), while the Live Monitor and all connected participant/admin devices update instantaneously via WebSockets.
-  4. **Formatted Reports & User Administration:** Admins export A4-landscape Excel (`.xlsx`) and print-ready PDF attendance sheets with School/Office breakdowns, manage participant accounts, and inspect immutable activity logs.
-- **Distributed System Application:** EventSync distributes operations across **four (4) separate computers/devices** (Admin Event Hub, Participant Registration Node, Door QR Scanner Station, and Organizer Live Monitor & Reporting Node) communicating over HTTPS (REST + Remote Procedure Calls) and persistent WebSockets (`supabase_realtime`) against a centralized PostgreSQL cloud database and object storage backend.
+![Figure 1. System Architecture Diagram](docs/architecture-diagram.png)
 
----
+> **Figure 1. EventSync Multi-Tier Client–Server Architecture**
+> *(Insert the labeled Multi-Tier Client–Server Architecture diagram showing the Presentation Layer [Admin/Organizer Node, Participant Node, QR Scanner Node, Live Monitor Node], Application Layer [Supabase Auth, PostgREST / Transactional RPCs, Realtime WebSockets, Edge Functions], and Backend & Database Layer [PostgreSQL Database, Storage Buckets, Row-Level Security].)*
 
-### Proposal 2 (Alternative): CampusQueue — Distributed Registrar & Cashier Service Queue System
-- **Proposed System Title:** CampusQueue: Real-Time Distributed Student Service Queue and Counter Management System
-- **System Description:** A multi-terminal queuing system where students obtain digital queue tickets from kiosk or mobile nodes, window tellers call and transfer tickets from counter workstations, and lobby display screens broadcast live queue numbers and estimated wait times.
-- **Problem Addressed:** Physical crowding and confusion at campus registrar and cashier windows caused by uncoordinated manual paper numbering and lack of live counter visibility.
-- **Main Features:**
-  1. Digital ticket issuance by service category (Transcript, Enrollment, Cashier, Clearance).
-  2. Teller workstation controls (Call Next, Hold, Transfer Window, Complete).
-  3. Live lobby display board synchronized across all waiting-area monitors.
-- **Distributed System Application:** Kiosk laptops, teller laptops, and lobby display laptops connect over the network to a central queue service and relational database using WebSockets and transactional row locking (`SELECT ... FOR UPDATE`) so no two tellers can claim the same ticket.
+### 3.2 Participating Computers and Assigned Roles
 
----
+| Computer / Device | Assigned Role | Responsibilities |
+| :--- | :--- | :--- |
+| **Supabase Cloud Backend (Central Host)** | **Cloud Server & Database Host** | Hosts the centralized PostgreSQL database, enforces Row-Level Security (RLS) and unique constraints, executes transactional RPCs (`register_for_event`, `verify_attendance`, `sync_offline_attendance`, `attendance_sheet`, `issue_my_certificate`, `verify_certificate_code`), stores event banners and certificate templates in Supabase Storage, and broadcasts live state changes via Supabase Realtime WebSockets. |
+| **Computer 1 (Laptop)** | **Admin / Event Organizer Node** | Used by Administrators and approved Event Organizers to create, edit, and publish events, configure eligibility rules, upload custom certificate designs, link post-event feedback forms, review organizer role requests, manage user accounts, and export/print official attendance sheets. |
+| **Computer 2 (Laptop or Cellphone)** | **Participant Node** | Used by students, faculty, and staff to sign up, complete their BiPSU academic/office profile, browse published events, register online, view/download their QR pass and 8-character code, request the Event Organizer role, answer post-event feedback forms, and download their Certificate of Participation. |
+| **Computer 3 (Cellphone or Laptop with Camera)** | **QR Scanner Node** | Positioned at venue entrances/exits to scan participant QR passes (or verify 8-character short codes) in **Time In** or **Time Out** mode, display full-screen outcome modals, queue scans offline during temporary Wi-Fi drops, and resynchronize queued scans upon reconnection. |
+| **Computer 4 (Laptop / Shared Display)** | **Live Monitor Node** | Displays real-time registration counts, verified attendance totals, attendance rate percentage, and a live arrival/check-out feed (`Present`, `Present (Late)`, `Timed Out`) as transactions occur across all connected devices. |
 
-### Proposal 3 (Alternative): LabPulse — Distributed Computer Laboratory Inventory & Maintenance Tracker
-- **Proposed System Title:** LabPulse: Distributed Laboratory Workstation Monitoring and Incident Reporting System
-- **System Description:** A campus lab coordination system connecting student workstation nodes, lab technician laptops, and the department head dashboard to report hardware/software faults, track unit availability, and log maintenance resolution in real time.
-- **Problem Addressed:** Delayed repair of broken laboratory PCs and peripherals due to verbal or paper-based incident reporting across multiple computer laboratories.
-- **Main Features:**
-  1. Per-unit status board (Operational, Needs Repair, Under Maintenance) across multiple labs.
-  2. Instant fault ticket submission with severity tags and technician assignment.
-  3. Live maintenance feed and exportable monthly lab readiness reports.
-- **Distributed System Application:** Student lab computers, technician laptops, and the coordinator dashboard exchange state updates through REST/RPC calls and real-time Pub/Sub channels backed by a shared PostgreSQL database.
+### 3.3 Communication Methods
+
+| Communication Detail | Description / Specification |
+| :--- | :--- |
+| **Communication Protocol** | **HTTPS (TLS)** for REST API calls, authentication, storage uploads, and transactional RPC execution; **WSS (Secure WebSocket)** for Supabase Realtime publish–subscribe change notifications. |
+| **Communication Technology** | Wireless LAN (**Wi-Fi**) and Mobile Data (**4G/5G**) connecting client laptops and cellphones to the Vercel frontend host and Supabase cloud backend. |
+| **Network Connection** | Distributed client nodes connect over the internet to the deployed Vercel web application (`https://eventsync-lake.vercel.app`) and communicate directly with the centralized Supabase cloud cluster. |
+| **Data Exchange Method** | **JSON payloads** exchanged over PostgREST HTTP endpoints and PostgreSQL `SECURITY DEFINER` RPC functions, paired with asynchronous WebSocket event streams (`postgres_changes` on `events`, `registrations`, `attendance`, `profiles`, `role_requests`, and `certificates`). |
 
 ---
 
-## 2. System Documentation
+## PART IV. NETWORK COMMUNICATION DIAGRAM
 
-### 2.1 Objectives
-- **General Objective:** Design and implement a functional, fault-tolerant distributed event registration and attendance system where multiple independent computers coordinate, exchange data in real time, and maintain strict transactional consistency.
-- **Specific Objectives:**
-  1. Separate system responsibilities across **4 distinct participating computers** (Event Management Node, Registration Node, Scanner Station Node, Live Monitor & Reporting Node).
-  2. Enforce **server-authoritative concurrency control** using PostgreSQL row-level locks (`FOR UPDATE`) and `UNIQUE` constraints so simultaneous registrations never exceed capacity or create duplicate check-ins.
-  3. Propagate every state change (event publishing, image updates, registrations, cancellations, check-ins, and new signups) across all connected devices in near-real time via WebSockets.
-  4. Implement **network disconnection detection and automatic recovery** so nodes detect outages, inform the user, continue safe local operation/retry, and automatically resynchronize upon reconnection.
+### 4.1 Network Communication Flow
 
-### 2.2 Scope and Limitations
-- **Scope:**
-  - Public landing page with live aggregate statistics and upcoming published events.
-  - Participant portal: BiPSU Main Campus program-validated signup, profile editing, event browsing, 1-click registration/cancellation, downloadable QR pass modal, and attendance history.
-  - Administrator portal: Event CRUD + 16:9 image upload/crop, assisted participant registration, live QR scanner (camera + manual token), real-time attendance monitor, A4 Excel/PDF attendance sheet exports with School/Office breakdown, activity logs, and participant user management.
-- **Limitations:**
-  - Camera-based QR scanning in mobile/laptop browsers requires a **secure context** (`https://` or `http://localhost`); non-localhost `http://` LAN connections must use manual QR token entry or the deployed HTTPS URL.
-  - Designed for online/cloud-synced operation via Supabase; offline nodes display an offline banner and fall back to image placeholders until connectivity returns.
+![Figure 2. Network Communication Diagram](docs/network-communication-diagram.png)
 
-### 2.3 Multiple Computer Participation (4 Nodes)
-| Node | Device | Assigned Role & Page | Contribution to Distributed System |
-|---|---|---|---|
-| **Laptop 1** | Organizer / Event Admin | `/admin/events` & `/admin/users` | Creates, edits, uploads banners for, and publishes events; manages participant accounts. Changes broadcast immediately to all other nodes. |
-| **Laptop 2** | Participant Node | `/signup`, `/user/events`, `/user/registrations` | Registers participants, reserves seats atomically via RPC, receives unique QR passes, and reflects live seat/check-in updates. |
-| **Laptop 3** | Door Scanner Station | `/admin/scan` | Verifies participant QR tokens via camera or manual entry (`verify_qr_checkin` RPC), preventing duplicate check-ins and broadcasting attendance events. |
-| **Laptop 4** | Live Monitor & Reporting Hub | `/admin/monitor` & `/admin/reports` | Displays live registered/checked-in counters, arrival feeds, activity logs, and exports official A4 attendance sheets (`.xlsx` / PDF). |
+> **Figure 2. EventSync Network Communication Diagram**
+> *(Insert the Network Communication Diagram illustrating HTTPS Request/Response arrows and WSS Realtime Data Update arrows between the four client nodes [Admin/Organizer Node, Participant Node, QR Scanner Node, Live Monitor Node] and the Supabase Cloud Backend.)*
 
-### 2.4 Selected Distributed Architecture & Justification
-EventSync implements a **Multi-Tier Client–Server & Cloud-Backed Pub/Sub Distributed Architecture**:
-1. **Presentation Tier (Distributed Client Nodes):** Static HTML5/CSS3/ES6 JavaScript pages hosted on Vercel (production HTTPS) or `tools/dev-server.js` (`localhost:8080` for local testing). Each laptop/phone runs an independent browser client tailored to its role.
-2. **Middleware & API Tier (Supabase PostgREST, GoTrue Auth, Realtime, Storage):**
-   - **REST / PostgREST:** Standard CRUD queries protected by Row-Level Security (RLS).
-   - **Remote Procedure Calls (RPC):** Atomic transactional operations (`register_for_event`, `cancel_registration`, `verify_qr_checkin`, `attendance_sheet`, `admin_list_users`, `public_landing_stats`, `public_upcoming_events`).
-   - **WebSockets (`supabase_realtime`):** Pub/Sub change-data-capture streaming `INSERT`/`UPDATE`/`DELETE` events on `events`, `registrations`, `attendance`, `activity_logs`, and `profiles`.
-   - **Object Storage (`event-images` bucket):** Public-read, admin-write storage for compressed 16:9 WebP/JPEG event banners.
-3. **Data Tier (PostgreSQL):** Centralized relational database with ACID transactions, row-level locking, triggers, and RLS policies.
+### 4.2 Explanation of Network Communication
 
-**Why this architecture is suitable:**
-- Every participating laptop operates independently without relying on one peer laptop staying awake as a single point of failure.
-- Heavy concurrency hazards (race conditions when 2 users claim the last seat, or 2 scanners scan the same QR simultaneously) are solved inside ACID PostgreSQL `SECURITY DEFINER` RPCs.
-- WebSockets push updates to all 4 laptops automatically without manual page refreshes or polling.
+1. **How does a client computer send a request?**
+   Each client device runs the EventSync web application in a browser and sends authenticated **HTTPS requests** (carrying the user's Supabase Auth JWT in the `Authorization: Bearer <token>` header) to the Supabase REST API or RPC endpoint. For example, clicking **Register** on the Participant Node invokes `supabase.rpc('register_for_event', { p_event_id })`, and scanning a QR code on the QR Scanner Node invokes `supabase.rpc('verify_attendance', { p_qr_token, p_event_id, p_mode, p_direction })`.
 
-### 2.5 Failure and Recovery Mechanisms
-Implemented in `js/core/ui.js` (`startNetworkMonitor`, `watch`, `paint`):
-1. **Disconnection Detection:**
-   - Listens to browser `online` / `offline` events AND runs an **8-second health ping** (`GET /rest/v1/` with `apikey` and a 4-second abort timeout).
-   - Updates the header status chip (`Live` -> `Connecting` -> `Offline`) and displays a visible `#netBanner` warning (`"You are offline — actions will not sync until reconnected."`).
-2. **Operation During Outage:**
-   - Remaining connected laptops continue operating normally against the cloud database.
-   - On a disconnected node, any attempted write fails cleanly with a user-friendly error toast (never faking local success when unconfirmed by the server), and event images fall back to the built-in dark/crimson placeholder without broken image icons.
-3. **Reconnection & Resynchronization:**
-   - When connectivity returns (`online` event, successful health ping, or Realtime `SUBSCRIBED` recovery), all registered `watch()` callbacks automatically re-fetch fresh state (`load()`) from PostgreSQL so any missed transactions from other laptops are immediately reconciled.
+2. **Which computer receives and processes the request?**
+   The centralized **Supabase Cloud Backend** (PostgREST API gateway and PostgreSQL database server) receives the HTTPS request, verifies the caller's JWT session and role permissions (`is_admin()`, `is_organizer()`, `can_manage_event()`), and executes the corresponding transactional function.
+
+3. **How is information retrieved from or stored in the database?**
+   Inside PostgreSQL, `SECURITY DEFINER` RPC functions execute atomic transactions with row-level locks (`SELECT ... FOR UPDATE`) and unique constraints. When registering, `_register_core` locks the event row, checks schedule windows, capacity, and school/program/year eligibility, and inserts a row into `public.registrations`. When scanning, `_record_attendance` validates the QR token, blocks self-scans, checks the attendance window, and atomically inserts or updates `public.attendance` (for `IN` or `OUT` mode) while recording an audit entry in `public.activity_logs`.
+
+4. **How is the response transmitted back to the requesting computer?**
+   PostgreSQL returns a structured **JSON object** (such as `{ status: "ok", code: "OK", mode: "IN", participant: "...", checked_in_at: "..." }`) through PostgREST over HTTPS to the requesting client browser, which immediately updates its UI (for example, opening the full-screen green **CHECKED IN** modal on the QR Scanner Node).
+
+5. **How do the other participating computers interact with the system?**
+   All connected nodes maintain an active **Secure WebSocket (WSS)** subscription to Supabase Realtime (`watch([...tables])`). Whenever a transaction commits on `events`, `registrations`, `attendance`, `profiles`, `role_requests`, or `certificates`, PostgreSQL's Write-Ahead Log (WAL) broadcasts the change event over WSS to all subscribed nodes. The Live Monitor Node, Admin/Organizer Node, and Participant Node automatically re-fetch and re-render their counters, feeds, feedback buttons, and certificate statuses in real time without manual page refreshes. If a QR Scanner Node temporarily loses internet access, it stores scans locally in `localStorage` (`eventsync_scan_queue`) and automatically invokes `sync_offline_attendance` when the browser detects network restoration (`online` event).
 
 ---
 
-## 3. System Architecture Diagram
+## PART V. DATABASE DESIGN
 
-```mermaid
-flowchart TB
-    subgraph Nodes["Participating Distributed Client Nodes (4 Separate Laptops)"]
-        L1["Laptop 1: Admin Event Hub<br/>(/admin/events, /admin/users)"]
-        L2["Laptop 2: Participant Node<br/>(/user/events, /user/registrations)"]
-        L3["Laptop 3: Door Scanner Station<br/>(/admin/scan)"]
-        L4["Laptop 4: Live Monitor & Reports<br/>(/admin/monitor, /admin/reports)"]
-    end
+### 5.1 Entity Relationship Diagram (ERD)
 
-    subgraph Edge["Static Hosting / Edge"]
-        HOST["Vercel HTTPS Edge / Local Dev Server<br/>(HTML, CSS, ES6 Modules, Assets)"]
-    end
-
-    subgraph Middleware["Supabase Middleware & API Layer"]
-        AUTH["GoTrue Auth<br/>(JWT Sessions & Signup)"]
-        REST["PostgREST & RPC Gateway<br/>(HTTPS REST + SECURITY DEFINER RPCs)"]
-        RT["Supabase Realtime<br/>(WebSocket Pub/Sub)"]
-        STOR["Supabase Storage<br/>(event-images Bucket)"]
-    end
-
-    subgraph DB["Data Tier (PostgreSQL + RLS)"]
-        PG[("PostgreSQL Database<br/>profiles, events, registrations,<br/>attendance, activity_logs, program_catalog")]
-    end
-
-    HOST -.->|"Serves UI"| L1 & L2 & L3 & L4
-    L1 & L2 & L3 & L4 <-->|"HTTPS / JWT"| AUTH
-    L1 & L2 & L3 & L4 <-->|"HTTPS REST & RPC"| REST
-    L1 & L2 & L3 & L4 <-->|"WSS WebSockets"| RT
-    L1 -->|"Upload / Delete Banner"| STOR
-    L2 & L4 -->|"Lazy Fetch Banner"| STOR
-    AUTH --> PG
-    REST <--> PG
-    RT <-->|"WAL Logical Replication"| PG
-    STOR <-->|"Storage RLS"| PG
-```
-
----
-
-## 4. Network Communication Diagram
-
-### 4.1 Real-Time Multi-Laptop Transaction Flow (Registration & Door Check-In)
-```mermaid
-sequenceDiagram
-    autonumber
-    participant L1 as Laptop 1 (Admin)
-    participant L2 as Laptop 2 (Participant)
-    participant L3 as Laptop 3 (Scanner)
-    participant L4 as Laptop 4 (Monitor)
-    participant API as Supabase RPC / REST
-    participant DB as PostgreSQL (ACID + RLS)
-    participant RT as Supabase Realtime (WSS)
-
-    L1->>API: PATCH /rest/v1/events (status='published')
-    API->>DB: UPDATE events + trg_log_events()
-    DB-->>RT: WAL Change (events UPDATE)
-    RT-->>L2: WSS Broadcast: event published
-
-    L2->>API: POST /rest/v1/rpc/register_for_event(event_id)
-    API->>DB: SELECT ... FOR UPDATE (lock event row) -> INSERT registrations -> UPDATE registered_count
-    DB-->>API: Return { id, qr_token }
-    API-->>L2: 200 OK (Open QR Pass Modal)
-    DB-->>RT: WAL Change (events + registrations)
-    RT-->>L1: WSS Broadcast: registered_count +1
-    RT-->>L4: WSS Broadcast: Live Monitor count +1
-
-    L3->>API: POST /rest/v1/rpc/verify_qr_checkin(qr_token)
-    API->>DB: Validate token -> INSERT attendance (UNIQUE registration_id) -> log_activity()
-    DB-->>API: 200 OK { status: 'checked_in', participant }
-    DB-->>RT: WAL Change (attendance INSERT)
-    RT-->>L2: WSS Broadcast: Badge flips to "Attended"
-    RT-->>L4: WSS Broadcast: Live Arrival Feed & Velocity % update
-```
-
-### 4.2 Disconnection & Automatic Recovery Flow
-```mermaid
-sequenceDiagram
-    participant L4 as Laptop 4 (Monitor)
-    participant NET as Network Health Monitor (ui.js)
-    participant RT as Supabase Realtime (WSS)
-    participant DB as PostgreSQL
-
-    Note over L4,NET: Every 8s: HEAD/GET /rest/v1/ (4s timeout)
-    NET--xDB: Ping failed / browser offline event
-    NET->>L4: Chip = "Offline", Show #netBanner
-    Note over L4: Other laptops continue operating normally
-    NET->>DB: Ping succeeds / browser online event
-    RT->>L4: Channel status = SUBSCRIBED
-    NET->>L4: Trigger watch() reconnect callbacks -> load()
-    L4->>DB: Re-fetch latest events, registrations, attendance
-    DB-->>L4: Synced state restored, Chip = "Live"
-```
-
----
-
-## 5. Database Design & ERD
-
-### 5.1 Database Technology & Access Control
-- **DBMS:** PostgreSQL (hosted on Supabase) with `pgcrypto` enabled.
-- **Access Method:** Participating computers connect via HTTPS (PostgREST & RPC) using `@supabase/supabase-js` authenticated with JWTs from Supabase GoTrue Auth.
-- **Security & Consistency Mechanisms:**
-  - **Row-Level Security (RLS)** enabled on all tables (`profiles`, `events`, `registrations`, `attendance`, `activity_logs`) and `storage.objects`.
-  - **Atomic `SECURITY DEFINER` RPCs:** All critical state transitions (`register_for_event`, `cancel_registration`, `verify_qr_checkin`, `admin_register_participant`, `attendance_sheet`, `admin_list_users`) execute inside PostgreSQL transactions with row locks (`FOR UPDATE`) and `UNIQUE` constraints (`registrations_unique_per_event`, `attendance.registration_id`).
-  - **Role-Escalation & Profile Protection:** Triggers `prevent_role_change()`, `validate_profile_update()`, and column-level `GRANT UPDATE` ensure participants can never promote themselves to `admin` or alter `school_id`/`email`.
-
-### 5.2 Entity Relationship Diagram (ERD)
 ```mermaid
 erDiagram
-    PROFILES ||--o{ EVENTS : "creates (created_by)"
-    PROFILES ||--o{ REGISTRATIONS : "registers (user_id)"
-    EVENTS ||--o{ REGISTRATIONS : "has (event_id)"
-    REGISTRATIONS ||--o| ATTENDANCE : "verified once (registration_id)"
-    EVENTS ||--o{ ATTENDANCE : "records (event_id)"
-    PROFILES ||--o{ ATTENDANCE : "attends (user_id)"
-    PROFILES ||--o{ ACTIVITY_LOGS : "performs (actor_id)"
-    PROGRAM_CATALOG ||--o{ PROFILES : "validates program"
-
-    PROFILES {
-        uuid id PK
-        text full_name
-        text email UK
-        text school_id UK
-        text contact_number
-        text role "admin | user"
-        text member_type "student | faculty | staff"
-        text department "School / Office"
-        text program "Official program name"
-        text major "Nullable major"
-        text course "Short display label"
-        boolean program_needs_update
-        smallint year_level "1-4 for students"
-        text section
-        text status "active | inactive"
-        boolean must_change_password
-        timestamptz consent_at
-        timestamptz deactivated_at
-        timestamptz created_at
-    }
-
-    EVENTS {
-        uuid id PK
-        text title
-        text description
-        text venue
-        timestamptz starts_at
-        timestamptz ends_at
-        timestamptz registration_deadline
-        int capacity
-        int registered_count
-        text status "draft | published | closed"
-        text image_path "Storage key (nullable)"
-        timestamptz image_updated_at
-        uuid created_by FK
-        timestamptz created_at
-    }
-
-    REGISTRATIONS {
-        uuid id PK
-        uuid event_id FK
-        uuid user_id FK
-        text status "registered | cancelled"
-        uuid qr_token UK
-        timestamptz registered_at
-    }
-
-    ATTENDANCE {
-        uuid id PK
-        uuid registration_id UK,FK
-        uuid event_id FK
-        uuid user_id FK
-        uuid verified_by FK
-        timestamptz checked_in_at
-    }
-
-    ACTIVITY_LOGS {
-        bigint id PK
-        uuid actor_id FK
-        text action
-        text entity
-        text entity_id
-        jsonb details
-        timestamptz created_at
-    }
-
-    PROGRAM_CATALOG {
-        text program_code PK
-        text school_code
-        text school_name
-        text program_name UK
-        text short_name
-        text_arr majors
-    }
+    profiles ||--o{ events : "creates (created_by)"
+    profiles ||--o{ registrations : "registers (user_id)"
+    profiles ||--o{ attendance : "attends (user_id)"
+    profiles ||--o{ attendance : "verifies IN (verified_by)"
+    profiles ||--o{ attendance : "verifies OUT (checked_out_by_user_id)"
+    profiles ||--o{ role_requests : "submits (user_id)"
+    profiles ||--o{ role_requests : "reviews (reviewed_by)"
+    profiles ||--o{ certificate_templates : "owns (owner_id)"
+    profiles ||--o{ certificates : "earns (user_id)"
+    profiles ||--o{ activity_logs : "performs (actor_id)"
+    program_catalog ||--o{ profiles : "validates (program_code)"
+    certificate_templates ||--o{ events : "styles (certificate_template_id)"
+    certificate_templates ||--o{ certificates : "snapshots (template_id)"
+    events ||--o{ registrations : "has (event_id)"
+    events ||--o{ attendance : "records (event_id)"
+    events ||--o{ certificates : "issues (event_id)"
+    registrations ||--o| attendance : "verifies (registration_id)"
 ```
 
-### 5.3 Database Objects Summary
-| Object | Purpose |
-|---|---|
-| `public.profiles` | User accounts (linked to `auth.users`), BiPSU program fields (`department`, `program`, `major`, `course`, `program_needs_update`), role, and active/inactive status. |
-| `public.program_catalog` | Server-side catalog of the 7 BiPSU Main Campus Schools, 20 Programs, and Majors used by `resolve_program_selection()`. |
-| `public.events` | Event schedule, venue, capacity, live `registered_count` (maintained by trigger), and optional `image_path` + `image_updated_at`. |
-| `public.event_stats` (View) | Joins `events.*` with live `attended_count` for admin and participant views. |
-| `public.registrations` | Links participants to events with `UNIQUE(event_id, user_id)` and unique `qr_token`. |
-| `public.attendance` | Check-in records with `UNIQUE(registration_id)` preventing duplicate door scans. |
-| `public.activity_logs` | Immutable audit trail written by triggers (`trg_log_events`) and `SECURITY DEFINER` RPCs. |
-| `storage.buckets` (`event-images`) | Public-read, admin-write bucket (5 MB limit, `image/jpeg`, `image/png`, `image/webp` only). |
+> **Figure 3. Entity Relationship Diagram (ERD)**
+> *(The database consists of 9 interconnected tables linking user profiles, the BiPSU program catalog, organizer role requests, events, registrations, attendance check-ins/outs, certificate templates, issued certificates, and activity logs.)*
+
+### 5.2 Database Description
+
+| Database Detail | Description / Specification |
+| :--- | :--- |
+| **Database Name** | `postgres` (EventSync Production Schema `public`) |
+| **Database Management System (DBMS)** | **PostgreSQL 15+** (Managed via Supabase) |
+| **Database Location** | Cloud-hosted (Supabase AWS Asia-Pacific Northeast Region) |
+| **Database Type** | **Relational Database (RDBMS)** with Row-Level Security (RLS), JSONB support, and real-time WAL replication |
+| **Connection Method** | Browser clients connect via `@supabase/supabase-js` over HTTPS (PostgREST) and WSS (Supabase Realtime); administrative/test scripts connect via pooled PostgreSQL TLS connection (`pg`). |
+
+### 5.3 Database Tables
+
+| Table Name | Purpose / Description |
+| :--- | :--- |
+| **`profiles`** | Stores user accounts linked to `auth.users(id)`, including `full_name`, `email`, `role` (`'user'`, `'organizer'`, `'admin'`), `school_id` (unique), `contact_number`, `member_type` (`'student'`, `'faculty'`, `'staff'`), `department` (school/office), `program`, `major`, `program_code` (FK), `year_level`, `section`, `status` (`'active'`, `'inactive'`), and `must_change_password`. |
+| **`program_catalog`** | Stores the official BiPSU Main Campus academic catalog (`program_code` PK, `school_code`, `school_name`, `program_name`, `short_name`, and `majors` array) used to validate participant profiles. |
+| **`role_requests`** | Tracks participant requests to become an Event Organizer (`id` PK, `user_id` FK, `reason`, `planned_events`, `status` [`'pending'`, `'approved'`, `'rejected'`], `reviewed_by` FK, `decision_reason`, `created_at`, `reviewed_at`). Enforces at most one pending request per user. |
+| **`events`** | Stores event records (`id` PK, `title`, `description`, `venue`, `starts_at`, `ends_at`, `registration_opens_at`, `registration_deadline`, `early_grace_minutes`, `late_grace_minutes`, `late_after_minutes`, `capacity`, `registered_count`, `status`, `image_path`, `feedback_url`, `feedback_audience`, `feedback_opened_early`, `allowed_schools`, `allowed_programs`, `allowed_year_levels`, `certificates_enabled`, `certificate_template_id` FK, `created_by` FK). |
+| **`registrations`** | Records participant event registrations (`id` PK, `event_id` FK, `user_id` FK, `status` [`'registered'`, `'cancelled'`], unique `qr_token` UUID, `registered_at`) with a composite unique constraint on `(event_id, user_id)`. |
+| **`attendance`** | Stores verified attendance records (`id` PK, unique `registration_id` FK, `event_id` FK, `user_id` FK, `verified_by` FK, `checked_in_at`, `check_in_scan_id` unique, `check_out_time`, `check_out_scan_id` unique, `checked_out_by_user_id` FK, `is_test`, `clock_suspect`, `voided`, `void_reason`). |
+| **`certificate_templates`** | Stores reusable certificate designs (`id` PK, `owner_id` FK, `name`, `file_path` in private storage, `mime_type`, `width`, `height`, `layout` JSONB array of field positions, `version`, `is_global`, `is_active`, `created_at`, `updated_at`). |
+| **`certificates`** | Stores issued participant certificates (`id` PK, unique non-sequential `certificate_code` e.g. `CERT-2026-K7M4Q9X2`, `user_id` FK, `event_id` FK, `template_id` FK, `template_version`, frozen `layout_snapshot` JSONB, `name_at_issuance`, `event_name_at_issuance`, `event_date_at_issuance`, `status` [`'valid'`, `'revoked'`], `revoked_by`, `revoked_at`, `revoke_reason`) with a unique constraint on `(user_id, event_id)`. |
+| **`activity_logs`** | Maintains an audit trail of system transactions (`id` PK, `actor_id` FK, `action`, `entity`, `entity_id`, `details` JSONB, `created_at`) covering event updates, registrations, check-ins, check-outs, role request decisions, report exports, and certificate issuance/revocation. |
 
 ---
 
-## 6. Source Code Overview
+## PART VI. SOURCE CODE
 
-Repository root: `d:\eventsync`
+### 6.1 Source Code Description
 
-```text
-eventsync/
-├── index.html                  # Public landing page (live stats + upcoming events row)
-├── login.html                  # Authentication page (with password eye toggle)
-├── signup.html                 # Public participant registration (BiPSU selector + validation)
-├── config/
-│   └── programs.js             # Single source of truth for BiPSU Schools, Programs & Majors
-├── css/
-│   └── theme.css               # Dark + Crimson theme, responsive tables/cards, uploader & selector UI
-├── admin/
-│   ├── events.html             # Admin Event CRUD + 16:9 image uploader/cropper
-│   ├── registrations.html      # Admin Registrations list + assisted participant registration
-│   ├── scan.html               # Door QR Scanner Station (camera + manual entry)
-│   ├── monitor.html            # Organizer Live Monitor & arrival feed
-│   ├── reports.html            # Per-event Attendance Sheet & Summary Excel/PDF exports
-│   └── users.html              # Admin Users directory, filters, detail modal, Excel export
-├── user/
-│   ├── events.html             # Participant Browse Events (16:9 banners, Details modal, Register)
-│   ├── registrations.html      # My Registrations (thumbnails, View QR, Cancel)
-│   └── profile.html            # Participant Profile (BiPSU selector, legacy banner, password change)
-├── js/
-│   ├── config.js               # Supabase project URL & anon key (generated on Vercel via build)
-│   ├── core/
-│   │   ├── supabase.js         # Supabase client initialization
-│   │   ├── boot.js             # Route guard, role nav, forced password-change modal
-│   │   └── ui.js               # DOM helpers, toasts, 8s health ping, Realtime watch(), password eyes
-│   ├── shared/
-│   │   ├── icons.js            # Local inline SVG icons (zero CDN)
-│   │   ├── participant-options.js
-│   │   ├── participant-form.js # Shared signup & admin assisted registration form
-│   │   ├── program-selector.js # Searchable School -> Program -> Major selector
-│   │   ├── validation.js       # Client-side validation mirrored on server
-│   │   ├── event-images.js     # Client 16:9 canvas resize/crop, magic-byte validation, Storage API
-│   │   └── sheet.js            # Attendance sheet model, ExcelJS workbook, printable HTML, School breakdown
-│   ├── admin/                  # Page controllers for admin/*.html
-│   ├── user/                   # Page controllers for user/*.html + qr-modal.js
-│   └── pages/                  # login.js, signup.js
-├── supabase/
-│   ├── schema.sql              # Complete base schema + migrations
-│   └── migrations/             # 002 through 008 incremental SQL migrations
-├── tests/                      # 7 automated test suites (44 tests via node --test)
-└── tools/
-    ├── dev-server.js           # Localhost-only static test server (http://localhost:8080)
-    ├── generate-config.js      # Builds js/config.js from Vercel/Netlify env vars
-    ├── apply-migration.js      # Applies SQL migrations to PostgreSQL
-    └── create-admin.js         # Terminal-only admin account creation using service_role
-```
+| Technology | Name / Version | Purpose |
+| :--- | :--- | :--- |
+| **Programming Languages** | HTML5, CSS3, JavaScript (ES2022 Modules), SQL (PL/pgSQL) | Frontend user interfaces, responsive dark + crimson theme, print stylesheet (`@media print`), client-side logic, and server-side database functions/triggers. |
+| **Backend & Database Platform** | Supabase (`@supabase/supabase-js` v2.119.0, PostgreSQL 15) | Authentication, PostgreSQL database, Row-Level Security (RLS), transactional RPCs, Realtime WebSockets, Edge Functions, and Storage buckets (`event-images`, `certificate-templates`). |
+| **Libraries & Utilities** | `html5-qrcode` v2.3.8, `qrcode` v1.5.3, `exceljs` v4.4.0, `jspdf` v2.5.1, `pdf-lib` v1.17.1 | Camera QR code scanning, QR pass & verification QR generation, Excel (`.xlsx`) workbook export, attendance report PDF generation, and custom certificate PDF generation. |
+| **Development & Testing Tools** | Node.js v22 (`node:test`), `pg` v8.23.1, `serve` v14.2.3, Git / GitHub, Vercel | Local development server, automated build config generator, 60-test automated integration suite, version control, and cloud deployment. |
+
+### 6.2 Source Code Repository / Files
+
+| Item | Details |
+| :--- | :--- |
+| **Repository Link** | `https://github.com/angelicaarrogant3/EventSync` |
+| **Deployed Application URL** | `https://eventsync-lake.vercel.app/` |
+| **Source Code Folder Structure** | `admin/` (Admin & Organizer pages), `user/` (Participant portal pages), `verify.html` (Public certificate verification), `js/core/` (Supabase client, route guard, Realtime helper), `js/admin/` (events, registrations, scanner, full-screen modal, monitor, reports, users), `js/user/` (events, registrations, profile, QR pass modal), `js/shared/` (certificate engine & one-click editor, attendance sheet generator, BiPSU program selector, image uploader, validators), `config/` (BiPSU program catalog, schedule & late-checkin calculations, feedback URL validator), `supabase/migrations/` (SQL migrations `001`–`017`), `supabase/functions/` (Edge Functions), and `tests/` (automated test suite). |
+| **Additional Setup Files** | `package.json`, `vercel.json`, `serve.json`, `tools/generate-config.js`, `tools/dev-server.js`, `tools/create-admin.js`. |
 
 ---
 
-## 7. User Manual
+## PART VII. USER MANUAL
 
-### 7.1 Installation & Configuration
-1. **Prerequisites:** Node.js (v18+), a Supabase project, and Vercel/Netlify (for HTTPS deployment).
-2. **Database Setup:**
-   - Run `supabase/schema.sql` (or apply `supabase/migrations/002` through `008` via `PGURL=... node tools/apply-migration.js <file.sql>`).
-   - In Supabase **Authentication -> Providers -> Email**, set minimum password length to **8** with letters and digits.
-3. **Install Dependencies & Configure:**
-   ```powershell
-   cd D:\eventsync
+### 7.1 System Requirements
+
+| Requirement | Specification |
+| :--- | :--- |
+| **Operating System** | Windows 10/11, macOS, Linux, Android 10+, or iOS 15+ |
+| **Processor** | Dual-core 1.6 GHz or higher (any modern laptop, desktop, or smartphone processor) |
+| **RAM** | At least 4 GB RAM (2 GB minimum on mobile devices) |
+| **Network Requirements** | Wi-Fi or 4G/5G internet connection supporting HTTPS (port 443) and WebSocket (WSS) connections |
+| **Required Software** | Updated web browser (Google Chrome 110+, Microsoft Edge 110+, Safari 15+, or Mozilla Firefox 110+) with camera permission enabled on QR Scanner devices |
+
+### 7.2 Installation Guide
+
+EventSync is deployed on Vercel and can be accessed immediately at `https://eventsync-lake.vercel.app/`. To install and run the system locally on the participating computers for development or testing:
+
+1. **Install Node.js:** Download and install Node.js (v18 or v22 LTS) from `https://nodejs.org/`.
+2. **Clone the Repository:** Open a terminal and run:
+   ```bash
+   git clone https://github.com/angelicaarrogant3/EventSync.git
+   cd EventSync
+   ```
+3. **Install Dependencies:** Run the following command in the project root folder:
+   ```bash
    npm install
    ```
-   Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `js/config.js` (or as Vercel environment variables; `npm run build` runs `tools/generate-config.js`).
-4. **Create First Administrator (Terminal Only):**
-   ```powershell
-   $env:SUPABASE_SERVICE_ROLE_KEY = '<your-service-role-key>'
-   npm run create-admin
-   ```
-5. **Run Locally for Testing:**
-   ```powershell
-   npm start   # Serves at http://localhost:8080
-   ```
+4. **Apply Database Migrations:** Execute the SQL migration scripts in `supabase/migrations/` (`001_init.sql` through `017_attendance_certificates.sql`) in the Supabase SQL Editor.
+5. **Start the Local Server:** Run `npm start` to launch the local web server at `http://localhost:8080`.
+6. **Open Across Participating Devices:** On each participating laptop or cellphone, open the deployed URL (`https://eventsync-lake.vercel.app/`) or local server address in Google Chrome or Microsoft Edge.
 
-### 7.2 Administrator Guide
-1. **Create & Publish an Event (`/admin/events`):**
-   - Click **+ New event**, enter Title, Venue, Description, Start/End times, optional Registration Deadline and Capacity.
-   - Drag and drop (or click **Choose**) to upload a JPEG/PNG/WebP banner (max 5 MB), adjust **Zoom / Horizontal / Vertical** for the 16:9 crop, set Status to **Published**, and click **Save**.
-2. **Manage Registrations (`/admin/registrations`):**
-   - Filter by event or search by name, School ID, email, or program; cancel/reinstate registrations or use **+ Register participant** for assisted on-site signups.
-3. **Verify Attendance at the Door (`/admin/scan`):**
-   - Select the active event, allow camera access (requires HTTPS or `localhost`), and point at participant QR passes—or enter the QR token manually. Results show **Checked in** (green), **Already checked in** (amber), or **Invalid QR** (red).
-4. **Monitor & Export Reports (`/admin/monitor`, `/admin/reports`, `/admin/users`):**
-   - Watch live arrival counts and feeds on **Live Monitor**.
-   - On **Reports**, select an event and click **Export Excel (.xlsx)** or **Save / Print PDF** for an A4 attendance sheet with **Attendance by School / Office** breakdown and signature lines.
-   - On **Users**, filter by School, Program, or Status, inspect participant registration history, deactivate/reactivate accounts, or reset passwords.
+### 7.3 System Configuration
 
-### 7.3 Participant Guide
-1. **Sign Up (`/signup`):** Enter Full Name, School ID, Email, optional PH Contact Number, select **Student / Faculty / Staff**, choose **School / College -> Program -> Major** (or use **Search program**), select **Year level** (Students only), set an 8+ character password, accept privacy consent, and submit.
-2. **Browse & Register (`/user/events`):** View published events with 16:9 banners, click **Details** for full info, and click **Register** to reserve a seat and open your QR Pass modal (**Download PNG**).
-3. **Manage Registrations & Profile (`/user/registrations`, `/user/profile`):** View QR passes, cancel before the event starts, update your BiPSU program/contact/password, and view your verified attendance history.
+1. **Supabase Connection Configuration (`js/config.js`):**
+   Configure the Supabase project URL and anonymous public key in `js/config.js` (or set `SUPABASE_URL` and `SUPABASE_ANON_KEY` environment variables on Vercel, which `node tools/generate-config.js` writes during build):
+   ```javascript
+   export const SUPABASE_URL = 'https://<your-project-ref>.supabase.co';
+   export const SUPABASE_ANON_KEY = '<your-anon-public-key>';
+   ```
+2. **Initial Administrator Setup:**
+   Create or promote an administrator account using `npm run create-admin` (or via the Users management screen).
+3. **Assigning Roles to Participating Devices:**
+   - **Computer 1 (Admin / Organizer Node):** Sign in with an Administrator or approved Event Organizer account and open `/admin/events`.
+   - **Computer 2 (Participant Node):** Sign in with a Participant account (or create a new account at `/login`) and open `/user/events`.
+   - **Computer 3 (QR Scanner Node):** Sign in with an Admin or Event Organizer account, open `/admin/scan`, select the active event (or leave on *Auto-detect from QR*), choose **Time In** or **Time Out** mode, and grant browser camera permission.
+   - **Computer 4 (Live Monitor Node):** Sign in with an Admin or Event Organizer account, open `/admin/monitor`, and select the event to display on the shared screen.
+
+### 7.4 System Usage Instructions
+
+#### Figure 4. Public Landing Page & Authentication (`/`, `/login`)
+| *[Insert screenshot of the Landing Page and Login / Sign-Up screen here]* |
+| :--- |
+| **Description:** Visitors view plain-language instructions and upcoming published events on the landing page. Clicking **Sign Up** allows students, faculty, and staff to create a Participant account by selecting their member type (*Student*, *Faculty*, or *Staff*), School/College, BiPSU Program, Major (where applicable), Year Level, and School ID. |
+
+#### Figure 5. Participant Event Browsing, Registration & QR Pass (`/user/events`, `/user/registrations`)
+| *[Insert screenshot of Browse Events and the EventSync QR Pass Modal with 8-character short code here]* |
+| :--- |
+| **Description:** Participants browse published events, see any eligibility rules (*Open to: ...*) and live seat availability, and click **Register**. Clicking **View QR** opens their personal **EventSync Pass** showing the QR code, a one-tap copyable **8-character pass code** (e.g., `7AD9AD25`), and a **Download PNG** button. |
+
+#### Figure 6. Requesting the Event Organizer Role & Admin Approval (`/user/profile`, `/admin/users`)
+| *[Insert screenshot of the Event Organizer Role Request card on My Profile and the Organizer Role Requests queue on Admin Users here]* |
+| :--- |
+| **Description:** On **My Profile**, a participant can fill in why they need organizer access and what events they plan to run, then click **Become an organizer**. On **Admin → Users**, the Administrator sees the pending request under **Organizer Role Requests** and clicks **Approve** or **Reject**. Once approved, the user sees an **Organizer View ↔ Participant View** switch in the top bar. |
+
+#### Figure 7. Event Creation, Eligibility Rules, Feedback & One-Click Certificate Design (`/admin/events`)
+| *[Insert screenshot of the Create/Edit Event modal and the Upload Certificate Design modal here]* |
+| :--- |
+| **Description:** Organizers and Administrators create or edit events with schedule windows, grace minutes, *"Mark as late after (min)"*, optional **Eligibility restrictions** (School/Office, Program, Year Levels), a **Google Form feedback link** (*People who attended* or *Everyone who registered*, plus *Open feedback now*), and **Attendance Certificates**. Clicking **+ Upload / Design** or **Edit template** lets the organizer upload a ready-made certificate image (with only the Participant's Name left blank) and click directly on the name line to position the participant's name while automatically placing the verification QR and Certificate ID in the chosen corner. |
+
+#### Figure 8. QR Scanner Station with Time-In / Time-Out & Full-Screen Outcome Modal (`/admin/scan`)
+| *[Insert screenshot of the Scan QR page with Time In / Time Out switch and the full-screen CHECKED IN / CHECKED OUT modal here]* |
+| :--- |
+| **Description:** Staff at the entrance select **Time In** (green) or **Time Out** (blue) at the top of `/admin/scan`, then scan a participant's QR code with the camera or enter their 8-character short code manually. Every scan opens an instant **full-screen outcome modal** readable from arm's length (*CHECKED IN*, *CHECKED OUT*, *ALREADY CHECKED IN*, *NO TIME-IN RECORDED*, etc.) with sound and vibration feedback. If Wi-Fi drops, scans are saved in the **Offline Queue** and synced automatically upon reconnection. |
+
+#### Figure 9. Live Attendance Monitor & Clean A4 Printable Reports (`/admin/monitor`, `/admin/reports`)
+| *[Insert screenshot of the Live Attendance Monitor and the printed Event Attendance Sheet here]* |
+| :--- |
+| **Description:** The **Live Attendance Monitor** displays real-time registered counts, verified attendance, remaining attendees, attendance rate, and a live arrival/departure feed across devices. The **Reports** page exports the official **Event Attendance Sheet** (showing *Time In*, *Time Out*, *Present / Present (Late) / Absent / Pending*, summary totals including *Total Late* and *Total Timed Out*, and *Attendance by School / Office*) to Excel (`.xlsx`), CSV, PDF, or a clean A4 landscape printout. |
+
+#### Figure 10. Post-Event Feedback, Certificate Download & Public Verification (`/user/profile`, `/verify/<code >`)
+| *[Insert screenshot of the Participant Certificate Download modal and the Public Certificate Verification page here]* |
+| :--- |
+| **Description:** After an event ends, attended participants see **Certificate ready** and **Download certificate** (PDF / PNG) alongside **Give feedback** on **My Registrations** and **My Profile**. Scanning the QR code on any issued certificate opens `/verify/<certificate_code>`, displaying whether the certificate is **VALID**, **REVOKED**, or **NOT FOUND** along with the participant name, event name, event date, and issuing organizer. |
 
 ---
 
-## 8. Testing Documentation
+## PART VIII. TESTING DOCUMENTATION
 
-### 8.1 Automated Test Suite (`npm test`)
-All automated unit, database, RLS, storage, validation, and realtime tests reside in `tests/*.test.js` and are executed with:
-```powershell
-$env:PGURL = '<postgres-connection-string>'
-npm test
-```
-**Verified Coverage (44 / 44 tests across 7 files):**
-1. `tests/event-images.test.js` — Magic-byte validation (`415` on SVG/GIF/text-as-PNG), size limit (`413` > 5 MB), path traversal prevention, migration preservation, admin vs participant/anon RLS, storage rollback & cleanup.
-2. `tests/programs.test.js` — BiPSU School/Program/Major validation, missing/extra major rejections, `Other / Not listed`, single-source-of-truth check across `js/` & HTML, server-side `resolve_program_selection()` & 20-program catalog check.
-3. `tests/registration.db.test.js` — Registration + QR creation, duplicate prevention, full-capacity rejection, deadline enforcement, cancellation freeing seats, post-start cancellation block, cross-user cancel protection.
-4. `tests/realtime.test.js` — Live WebSocket propagation of `registered_count` updates from Client A to Client B on register and cancel.
-5. `tests/reports.test.js` — `Asia/Manila` formatting, 0% zero-division safety, ExcelJS merged title/borders/freeze/A4 landscape, DB `attendance_sheet()` totals & admin-only logging.
-6. `tests/signup.db.test.js` — Transactional signup + profile creation, faculty null year level, duplicate email/School ID rejection, anti-role-escalation, `admin_register_participant()`.
-7. `tests/users.test.js` & `tests/validation.test.js` — HTTP 401/403 checks, summary counts matching DB, deactivated login block, self-deactivation block, client validation rules.
+### 8.1 Testing Overview
 
-### 8.2 Multi-Laptop Distributed Demonstration Plan (from `TESTING.md`)
-- **4-Laptop Live Verification:**
-  - **Laptop 1 (`/admin/events`):** Creates Draft event -> hidden on Laptop 2 -> clicks **Publish** -> appears live on Laptop 2 without refresh.
-  - **Laptop 2 (`/user/events`):** Registers -> seat count increments live on Laptop 1 and Laptop 4; simultaneous last-seat clicks from two devices allow only 1 winner.
-  - **Laptop 3 (`/admin/scan`):** Scans Laptop 2's QR -> green **Checked in** -> Laptop 4 Live Monitor arrival feed and attendance rate jump immediately; Laptop 2 badge flips to **Attended**; rescanning shows **Already checked in**.
-  - **Failure & Recovery Test:** Disconnect Laptop 4's Wi-Fi -> header chip turns **Offline** with warning banner while Laptops 1–3 continue operating -> reconnect Laptop 4 -> chip returns to **Live** and missed check-ins automatically sync.
+EventSync was tested through both multi-device distributed testing across interconnected laptops and smartphones and a 60-test automated integration suite (`npm test`) executed against the live Supabase PostgreSQL, Auth, Storage, and Realtime backend. Testing verified client connectivity, role-based access control, eligibility enforcement, concurrent registration and scan conflict handling, Time-In and Time-Out state transitions, late-arrival computation, offline scan queuing and idempotent resynchronization, post-event feedback gating, custom certificate issuance and verification, and real-time multi-node synchronization.
+
+### 8.2 Testing Environment
+
+| Computer / Device | Assigned Role | Operating System | Network Connection |
+| :--- | :--- | :--- | :--- |
+| **Computer 1 (Laptop 1)** | **Admin / Organizer Node** | Windows 11 (64-bit), Chrome 130 | Wi-Fi / Internet (HTTPS & WSS to Supabase Cloud) |
+| **Computer 2 (Laptop 2 / Smartphone 1)** | **Participant Node** | Windows 11 / Android 14, Chrome 130 | Wi-Fi / Mobile Data (HTTPS & WSS to Supabase Cloud) |
+| **Computer 3 (Smartphone 2 / Laptop 3)** | **QR Scanner Node** | Android 14 / Windows 11, Chrome 130 | Wi-Fi / Mobile Data (with simulated offline drop & reconnect) |
+| **Computer 4 (Laptop 4)** | **Live Monitor Node** | Windows 11 (64-bit), Microsoft Edge 130 | Wi-Fi / Internet (HTTPS & WSS to Supabase Cloud) |
+
+### 8.3 Test Cases and Results
+
+| Test Case | Expected Result | Actual Result | Status |
+| :--- | :--- | :--- | :--- |
+| **1. Client Connection & Role Routing** | Authenticated users connect to Supabase and are routed to `/user/events` (Participant) or `/admin/events` (Organizer/Admin); deactivated users are blocked at login. | Clients connected over HTTPS/WSS; role guards and account deactivation locks worked as expected. | **Pass** |
+| **2. BiPSU Profile Validation & Security** | Sign-up validates School/College, Program, Major, Year Level (students), Contact Number, and unique School ID/Email; public sign-up can never self-assign `admin` or `organizer`. | All valid profiles saved with foreign key `program_code`; duplicate IDs/emails and role-escalation attempts were rejected. | **Pass** |
+| **3. Organizer Role Request & Approval Flow** | A participant submits an organizer request (`pending`); duplicate pending requests and admin self-approvals are blocked; admin approval promotes the user to `organizer` and logs the decision. | Request created and approved via `admin_review_role_request`; user role updated to `organizer` with `Participant View ↔ Organizer View` switch. | **Pass** |
+| **4. Event Eligibility & Host Registration Rules** | Events restricted by School, Program, or Year Level reject ineligible participants; organizers cannot register as attendees for their own hosted events. | Ineligible registrations and organizer self-registrations were blocked both in the UI and by `_register_core`. | **Pass** |
+| **5. Concurrent Registration & Capacity Enforcement** | Multiple participants registering simultaneously for the last remaining seat never exceed event capacity or create duplicate registrations. | Row-level locking (`FOR UPDATE`) and `UNIQUE (event_id, user_id)` allowed exactly the capacity limit and rejected overflow requests with `"Event is full"`. | **Pass** |
+| **6. QR & 8-Character Pass Code Time-In / Time-Out** | Scanner records Time-In (`CHECKED IN`) and Time-Out (`CHECKED OUT`), rejects Time-Out before Time-In (`NO TIME-IN RECORDED`), blocks duplicate scans, and blocks self-scans (`SELF_SCAN_NOT_ALLOWED`). | Full-screen modal displayed the exact outcome for every camera QR and 8-character manual code verification; self-scans and duplicates were blocked. | **Pass** |
+| **7. Attendance Windows & Late Labeling (`Present (Late)`)** | Scans before `opens_at` or after `closes_at` are rejected; check-ins more than $N$ minutes after `starts_at` are labeled `Present (Late)` while counting toward Total Present. | Boundary timestamps (`on time`, `exact limit`, `late`, `disabled`) and report totals (`Total Late`) matched expected values. | **Pass** |
+| **8. Offline Scan Queue & Idempotent Resync** | Scans performed while offline are queued locally (`SAVED OFFLINE`) and synced chronologically upon reconnection without duplicates on retry. | `sync_offline_attendance` replayed queued Time-In and Time-Out scans in timestamp order and ignored duplicate `scan_id` replays. | **Pass** |
+| **9. Real-Time Multi-Computer Synchronization** | Registrations and scans on one device immediately update the Live Monitor Node, Admin Node, and Participant Node via Supabase Realtime without page refresh. | WebSocket `postgres_changes` events updated all connected nodes within ~1 second. | **Pass** |
+| **10. Post-Event Google Form Feedback Gating** | Only valid `https://` Google Forms URLs are accepted; `feedback_url` is hidden from direct table `SELECT` by participants and shown only when the event ends (or opens early) to the eligible audience. | Non-Google URLs and direct column reads were blocked; eligible participants saw the **Give feedback** button and banner at the exact end/early-open state. | **Pass** |
+| **11. Attendance Certificates & Public Verification** | Attended participants can download their PDF/PNG certificate after the event ends; template edits do not alter already-issued certificates; `/verify/<code>` shows `valid`, `revoked`, or `not_found` without exposing PII. | `issue_my_certificate` generated unique `CERT-2026-XXXXXXXX` certificates with frozen `layout_snapshot`; `/verify/<code>` and revocation/reissue passed all checks. | **Pass** |
+| **12. Attendance Sheet Exports & Clean A4 Print** | Reports export accurately to Excel (`.xlsx`), CSV, PDF, and clean A4 landscape print format with no browser navbar/chrome and a School/Office breakdown. | All export formats and `@media print` rules rendered only the official attendance sheet and summary tables. | **Pass** |
+
+### 8.4 Testing Evidence
+
+#### Testing Evidence 1 – Admin / Organizer Computer
+| *[Insert genuine screenshot or photograph of the Admin/Organizer Node managing events, reviewing organizer role requests, and viewing reports]* |
+| :--- |
+| **Caption:** Computer 1 (Admin / Organizer Node) creating an event, configuring certificate template placement, and viewing live attendance reports. |
+
+#### Testing Evidence 2 – Participant & QR Scanner Client Devices
+| *[Insert genuine screenshot or photograph of the Participant Node displaying the QR pass / 8-character code and the QR Scanner Node showing the full-screen CHECKED IN modal]* |
+| :--- |
+| **Caption:** Computer 2 (Participant Node) displaying an issued EventSync QR Pass and Computer 3 (QR Scanner Node) verifying Time-In and Time-Out attendance. |
+
+#### Testing Evidence 3 – Live Monitor & Real-Time Data Communication
+| *[Insert genuine screenshot or photograph of the Live Monitor Node updating in real time alongside the automated 60/60 passing test suite output]* |
+| :--- |
+| **Caption:** Computer 4 (Live Monitor Node) receiving instant WebSocket attendance updates from Supabase Realtime as scans are processed. |
+
+### 8.5 Testing Summary
+
+Across all manual multi-device demonstrations and **60 automated integration tests** (`60 passed, 0 failed`), EventSync performed all intended distributed functions reliably. All four client roles—Admin/Organizer Node, Participant Node, QR Scanner Node, and Live Monitor Node—communicated seamlessly through the centralized Supabase cloud backend over HTTPS and Secure WebSockets (WSS). Transactional RPCs and PostgreSQL constraints prevented race conditions, capacity overflows, self-scans, and duplicate check-ins/check-outs. Temporary network disconnections on the QR Scanner Node were handled gracefully by the local offline queue and idempotent resynchronization RPC.
 
 ---
 
-## 9. Final Presentation & Defense Guide
+## PART IX. FINAL PRESENTATION AND DEMONSTRATION
 
-### 9.1 Presentation Flow Checklist (Section VI)
-1. **Introduce EventSync & Purpose:** Real-time distributed campus event registration and QR attendance system for BiPSU Main Campus.
-2. **Problem Addressed:** Eliminating paper queues, duplicate entries, race conditions on limited seats, and manual attendance consolidation.
-3. **System Architecture:** Multi-tier Client–Server + Cloud Pub/Sub (Vercel static clients + Supabase Auth, PostgREST/RPC, Realtime WebSockets, Storage, PostgreSQL).
-4. **Role of Each Participating Computer:** Walk through Laptops 1–4 (Admin Hub, Participant Node, Door Scanner, Live Monitor & Reports).
-5. **Communication Technologies & Protocols:** HTTPS REST/RPC for transactional writes, WSS WebSockets for live broadcast, and 8s health ping for fault detection.
-6. **Database Implementation:** Show ERD, `FOR UPDATE` row locks, `UNIQUE` constraints, RLS, triggers, and `program_catalog`.
-7. **Live 4-Laptop Demo + Simultaneous Operations + Network Disconnect/Reconnect:** Execute the scenarios in Section 8.2.
+### 9.1 Presentation Overview
 
-### 9.2 Evaluation Criteria Alignment (Section VIII — 100%)
-- **System Functionality & Completeness (20%):** Full end-to-end event lifecycle, BiPSU programs, QR passes, images, user admin, and A4 reports.
-- **Distributed System Implementation (25%):** 4 distinct role-based laptops coordinating via cloud middleware and Pub/Sub.
-- **Network Communication & Data Exchange (15%):** HTTPS REST/RPC + WebSocket Realtime + offline detection & auto-resync.
-- **Database Implementation & Consistency (10%):** ACID PostgreSQL, RLS, row locking, unique constraints, and audit triggers.
-- **User Interface & Interactivity (10%):** Responsive dark + crimson UI, live badges/toasts, searchable program selector, 16:9 banners.
-- **System Documentation (10%):** Complete documentation, diagrams, ERD, user manual, and test evidence.
-- **Final Presentation & Technical Defense (10%):** Ready with live demo and technical Q&A below.
+During the final project demonstration, the group presents EventSync running live across four interconnected devices connected to the deployed application (`https://eventsync-lake.vercel.app/`):
 
-### 9.3 Technical Defense Q&A
-- **Why does the BiPSU program list live in one config file (`config/programs.js`)?**  
-  Keeping all schools, programs, and majors in a single source of truth (mirrored by `public.program_catalog` in PostgreSQL) eliminates duplicated hard-coded lists across forms, filters, QR tickets, and reports, prevents spelling/validation drift, and allows instant updates from one file.
-- **How do you prevent two participants from taking the last seat at the same time?**  
-  `register_for_event` executes inside a PostgreSQL `SECURITY DEFINER` transaction using `SELECT * INTO ev FROM public.events WHERE id = p_event_id FOR UPDATE`, locking the event row until the capacity check and insert commit, while `UNIQUE(event_id, user_id)` blocks duplicate registrations.
-- **How do you prevent duplicate QR check-ins at the door?**  
-  `verify_qr_checkin` inserts into `public.attendance`, which enforces a `UNIQUE(registration_id)` constraint; any concurrent or repeated scan of the same QR pass returns an amber `"Already checked in"` response without incrementing attendance counts.
-- **Where are event images stored and why not inside PostgreSQL rows?**  
-  Images are compressed on the client via `<canvas>` (max 1600 px, 16:9 WebP/JPEG, EXIF stripped) and stored in the Supabase Storage `event-images` bucket, while PostgreSQL stores only the relative key (`image_path`) and timestamp (`image_updated_at`). This avoids database bloat and allows long-lived CDN caching.
-- **What happens if one laptop loses Wi-Fi during the event?**  
-  The 8-second health ping and browser `offline` listener switch the status chip to `Offline` and show a banner. The remaining laptops keep working normally; once the disconnected laptop reconnects, `watch()` triggers a full state refetch so it catches up immediately.
-- **How do you track who did what?**  
-  Actions are written to an `activity_logs` table in the background; it is not shown in the interface to keep it simple.
+1. **Role Request & Event Setup (Computer 1 – Admin / Organizer Node):** Approving a participant's Event Organizer request, creating and publishing an event with eligibility rules, uploading a custom certificate design with one-click participant name placement, and attaching a post-event Google Form feedback link.
+2. **Online Registration & Pass Issuance (Computer 2 – Participant Node):** Browsing published events, registering online, and generating the digital QR code pass with its 8-character short code.
+3. **Time-In, Time-Out & Offline Fault Tolerance (Computer 3 – QR Scanner Node):** Scanning the participant's QR code in **Time In** and **Time Out** modes to trigger the full-screen outcome modal, demonstrating duplicate/self-scan prevention, and simulating an offline scan followed by automatic resynchronization.
+4. **Live Synchronization, Reporting & Certificate Verification (Computer 4 – Live Monitor Node & Participant/Admin Views):** Observing real-time counter and arrival feed updates on the Live Monitor without refreshing, printing the clean A4 landscape Event Attendance Sheet, answering the post-event feedback form, downloading the participant's PDF Certificate of Participation, and verifying its QR code on `/verify/<certificate_code>`.
+
+### 9.2 Presentation Evidence
+
+#### Figure 11. Final Presentation and Demonstration
+| *[Insert genuine photographs or screenshots of the group's final presentation and working 4-device demonstration here]* |
+| :--- |
+
+### 9.4 Conclusion
+
+The development and deployment of **EventSync** successfully demonstrated how distributed computing principles can modernize institutional event registration and attendance management at Biliran Province State University (BiPSU) Main Campus. By combining a multi-tier client–server architecture with transactional PostgreSQL Remote Procedure Calls (RPCs), Row-Level Security (RLS), and WebSocket-based real-time synchronization via Supabase Realtime, the system enables multiple independent laptops and smartphones to coordinate event operations concurrently while maintaining strict data consistency.
+
+Through features such as role-based organizer requests, program-catalog-validated profiles, event eligibility restrictions, full-screen Time-In and Time-Out QR verification, automatic late-arrival labeling, offline scan queuing with idempotent resynchronization, clean A4 attendance sheet printouts, post-event feedback gating, and custom-designed certificates with public QR verification, EventSync eliminates the bottlenecks and inaccuracies of manual paper-based workflows and provides a practical, scalable solution for university events.
