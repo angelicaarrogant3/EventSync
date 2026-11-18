@@ -82,13 +82,13 @@ begin
   if prof.role in ('organizer', 'admin') then
     raise exception 'Your account already has organizer or administrator privileges';
   end if;
-  if coalesce(btrim(prof.full_name), '') = '' or coalesce(btrim(prof.school_id), '') = '' then
-    raise exception 'Please complete your profile (full name and school ID) before requesting the organizer role';
+  if coalesce(btrim(prof.full_name), '') = '' then
+    raise exception 'Please complete your profile (full name) before requesting the organizer role';
   end if;
-  if char_length(v_reason) < 5 then
-    raise exception 'Please provide a brief reason for your request (at least 5 characters)';
+  if char_length(v_reason) < 2 then
+    raise exception 'Please provide a brief reason for your request';
   end if;
-  if char_length(v_planned) < 3 then
+  if char_length(v_planned) < 2 then
     raise exception 'Please describe the events you plan to organize';
   end if;
   if exists (select 1 from public.role_requests where user_id = uid and status = 'pending') then
