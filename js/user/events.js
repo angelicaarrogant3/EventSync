@@ -61,6 +61,18 @@ function render() {
     if (s.kind === 'registered') action = `<div class="row"><button class="btn" disabled>Registered</button><button class="btn ghost" data-qr="${e.id}">${ICONS.qr(16)} View QR</button><button class="btn ghost sm" data-detail="${e.id}">Details</button>${s.attended ? '<span class="badge ok">Attended</span>' : ''}</div>`;
     else if (s.kind === 'disabled') action = `<div class="row"><button class="btn" disabled title="${esc(s.reason || s.label)}">${s.label}</button><button class="btn ghost sm" data-detail="${e.id}">Details</button></div>${s.reason ? `<p class="muted sm" style="margin:.4rem 0 0">${esc(s.reason)}</p>` : ''}`;
     else action = `<div class="row"><button class="btn" data-reg="${e.id}" ${pending.has(e.id) ? 'disabled' : ''}>${pending.has(e.id) ? 'Registering...' : `${s.label} ${ICONS.arrowRight(16)}`}</button><button class="btn ghost sm" data-detail="${e.id}">Details</button></div>`;
+    const r = mine.get(e.id);
+    const fb = r?.feedback || {};
+    let fbBlock = '';
+    if (s.kind === 'registered') {
+      if (fb.available && fb.url) {
+        fbBlock = `<div style="margin-top:.65rem"><a class="btn fb-btn" href="${esc(fb.url)}" target="_blank" rel="noopener noreferrer">Give feedback</a></div>`;
+      } else if (fb.reason === 'attended_only') {
+        fbBlock = '<p class="muted sm" style="margin:.45rem 0 0">Feedback is for people who attended.</p>';
+      } else if (fb.reason === 'not_ended') {
+        fbBlock = '<p class="muted sm" style="margin:.45rem 0 0">Feedback opens after the event.</p>';
+      }
+    }
     const elig = eligibilityInfo(e);
     return `<div class="card hoverable fade-in" data-card="${e.id}">
       <a href="#event-${e.id}" data-detail="${e.id}" style="display:block;text-decoration:none;color:inherit">${eventBannerHtml(e, { variant: 'card' })}</a>
@@ -71,7 +83,7 @@ function render() {
         <p class="sm" style="margin:0 0 .35rem"><b>${e.registered_count}</b> registered${e.capacity ? ` / ${e.capacity} seats · <b>${left}</b> left` : ''}</p>
         ${e.capacity ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}
       </div>
-      ${action}</div>`;
+      ${action}${fbBlock}</div>`;
   }).join('');
 }
 
@@ -83,15 +95,21 @@ async function load() {
       .eq('status', 'published')
       .gte('ends_at', new Date().toISOString())
       .order('starts_at'),
-    supabase.from('registrations').select('id,event_id,status,qr_token,attendance(checked_in_at,voided,is_test)')
+    supabase.rpc('my_registrations')
   ]);
   if (ev.error) return toast(errMsg(ev.error), 'error');
   events = ev.data;
-  if (!rg.error) {
+  if (!rg.error && Array.isArray(rg.data)) {
     mine.clear();
     rg.data.forEach(r => {
       const att = norm(r.attendance);
-      mine.set(r.event_id, { id: r.id, status: r.status, qr_token: r.qr_token, attended: !!(att && !att.voided && !att.is_test) });
+      mine.set(r.event_id, {
+        id: r.id,
+        status: r.status,
+        qr_token: r.qr_token,
+        attended: !!att,
+        feedback: r.feedback || null
+      });
     });
   }
   render();
@@ -118,6 +136,8 @@ function openDetails(eventId) {
     dlg.addEventListener('click', ev => { if (ev.target === dlg) dlg.close(); });
   }
   const s = stateFor(e);
+  const r = mine.get(e.id);
+  const fb = r?.feedback || {};
   const left = e.capacity ? Math.max(e.capacity - e.registered_count, 0) : null;
   dlg.innerHTML = `
     ${eventBannerHtml(e, { variant: 'detail' })}
@@ -126,6 +146,7 @@ function openDetails(eventId) {
     ${e.description ? `<p class="sm">${esc(e.description)}</p>` : ''}
     <p class="sm"><b>${e.registered_count}</b> registered${e.capacity ? ` / ${e.capacity} seats · <b>${left}</b> left` : ''}</p>
     <div class="row" style="justify-content:flex-end;margin-top:1rem">
+      ${fb.available && fb.url ? `<a class="btn fb-btn" href="${esc(fb.url)}" target="_blank" rel="noopener noreferrer">Give feedback</a>` : ''}
       ${s.kind === 'registered' ? `<button class="btn" id="dtQr">${ICONS.qr(16)} View QR</button>` : s.kind === 'open' ? `<button class="btn" id="dtReg">${s.label} ${ICONS.arrowRight(16)}</button>` : `<button class="btn" disabled>${s.label}</button>`}
       <button class="btn ghost" id="dtClose">Close</button>
     </div>`;
