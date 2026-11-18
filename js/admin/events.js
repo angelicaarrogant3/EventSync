@@ -135,7 +135,7 @@ async function load() {
     const canToggleEarly = fbSet && new Date(e.ends_at) > new Date() && e.status !== 'cancelled';
     const hasElig = (e.allowed_schools?.length || e.allowed_programs?.length || e.allowed_year_levels?.length);
     return `<tr>
-      <td class="wrap" data-label="Title"><div class="evt-admin-title">${eventBannerHtml(e, { variant: 'thumb' })}<div><b>${esc(e.title)}</b>${e.allow_early_test_attendance ? ' <span class="badge dup">TEST MODE</span>' : ''}<br><span class="badge ${fbSet ? 'ok' : ''}" style="margin-top:.25rem">Feedback: ${fbSet ? 'set' : 'not set'}</span>${hasElig ? ' <span class="badge" style="margin-top:.25rem">Restricted</span>' : ''}${e.feedback_opened_early ? ' <span class="badge dup">Open early</span>' : ''}${endedNoFb ? '<br><small class="muted">This event ended. Add a feedback form link.</small>' : ''}</div></div></td>
+      <td class="wrap" data-label="Title"><div class="evt-admin-title">${eventBannerHtml(e, { variant: 'thumb' })}<div><b>${esc(e.title)}</b><br><span class="badge ${fbSet ? 'ok' : ''}" style="margin-top:.25rem">Feedback: ${fbSet ? 'set' : 'not set'}</span>${hasElig ? ' <span class="badge" style="margin-top:.25rem">Restricted</span>' : ''}${e.feedback_opened_early ? ' <span class="badge dup">Open early</span>' : ''}${endedNoFb ? '<br><small class="muted">This event ended. Add a feedback form link.</small>' : ''}</div></div></td>
       <td data-label="When">${fmt(e.starts_at)}</td>
       <td data-label="Venue">${esc(e.venue)}</td>
       <td data-label="Status"><span class="badge ${e.status}">${e.status}</span> <span class="badge ${dStatus.code}">${dStatus.label}</span></td>
@@ -178,7 +178,6 @@ function openForm(e) {
   $('#lateAfter').value = e ? (e.late_after_minutes ?? '') : DEFAULT_LATE_AFTER_MINUTES;
   $('#cap').value = e?.capacity ?? '';
   $('#status').value = e?.status || 'draft';
-  $('#testMode').checked = !!e?.allow_early_test_attendance;
   $('#fbUrl').value = e?.feedback_url || '';
   $('#fbAudience').value = e?.feedback_audience || 'attended';
   if ($('#certEnabled')) {
@@ -386,7 +385,7 @@ $('#form').onsubmit = async ev => {
     late_after_minutes: $('#lateAfter').value.trim() === '' ? null : Math.max(0, Math.min(1440, parseInt($('#lateAfter').value, 10))),
     capacity: $('#cap').value ? parseInt($('#cap').value, 10) : null,
     status: $('#status').value,
-    allow_early_test_attendance: $('#testMode').checked,
+    allow_early_test_attendance: false,
     feedback_url: fbRes.url,
     feedback_audience: $('#fbAudience').value || 'attended',
     certificates_enabled: $('#certEnabled') ? $('#certEnabled').checked : true,

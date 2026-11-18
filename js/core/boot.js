@@ -44,16 +44,18 @@ export async function boot(role, active) {
   if (role === 'admin') {
     if (!canManage) { location.replace('/user/events'); await halt(); }
     if (active === 'users' && profile.role !== 'admin') { location.replace('/admin/events'); await halt(); }
+  } else if (role === 'user') {
+    if (profile.role === 'admin') { location.replace('/admin/events'); await halt(); }
   }
 
   const navItems = role === 'admin'
     ? NAV.admin.filter(([k]) => k !== 'users' || profile.role === 'admin')
     : NAV.user;
   const links = navItems.map(([k, href, label]) => `<a href="${href}" class="${k === active ? 'active' : ''}">${label}</a>`).join('');
-  const switchLink = canManage
+  const switchLink = profile.role === 'organizer'
     ? (role === 'admin'
       ? `<a class="btn ghost sm" href="/user/events" title="Switch to Participant View">Participant View</a>`
-      : `<a class="btn ghost sm" href="/admin/events" title="Switch to ${profile.role === 'admin' ? 'Admin' : 'Organizer'} View">${profile.role === 'admin' ? 'Admin View' : 'Organizer View'}</a>`)
+      : `<a class="btn ghost sm" href="/admin/events" title="Switch to Organizer View">Organizer View</a>`)
     : '';
   const roleTag = profile.role === 'admin' ? 'admin' : profile.role === 'organizer' ? 'organizer' : '';
   const roleTitle = profile.role === 'admin' ? 'Administrator' : profile.role === 'organizer' ? 'Event Organizer' : 'Participant';
