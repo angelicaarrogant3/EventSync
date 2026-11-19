@@ -183,4 +183,21 @@ do $$ begin
   alter table public.events add constraint events_ends_after_starts_check check (ends_at > starts_at);
 end $$;
 
+-- 5. Allow Event Organizers (in addition to Admins) to upload, update, and delete event banner images
+drop policy if exists event_images_admin_insert on storage.objects;
+create policy event_images_admin_insert
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'event-images' and (public.is_admin() or public.is_organizer()));
+
+drop policy if exists event_images_admin_update on storage.objects;
+create policy event_images_admin_update
+  on storage.objects for update to authenticated
+  using (bucket_id = 'event-images' and (public.is_admin() or public.is_organizer()))
+  with check (bucket_id = 'event-images' and (public.is_admin() or public.is_organizer()));
+
+drop policy if exists event_images_admin_delete on storage.objects;
+create policy event_images_admin_delete
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'event-images' and (public.is_admin() or public.is_organizer()));
+
 notify pgrst, 'reload schema';
