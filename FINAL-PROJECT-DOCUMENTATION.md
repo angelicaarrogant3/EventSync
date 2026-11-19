@@ -166,13 +166,17 @@ erDiagram
 
 ### 5.2 Database Description
 
+EventSync utilizes **Supabase PostgreSQL** as its centralized, cloud-hosted relational database to store, validate, and synchronize all system records across interconnected laptops and smartphones. The database manages user profiles, the official BiPSU Main Campus academic program catalog, organizer role requests, event schedules and eligibility rules, participant registrations, Time-In and Time-Out attendance verification, custom certificate templates, issued certificates, and system activity logs.
+
 | Database Detail | Description / Specification |
 | :--- | :--- |
-| **Database Name** | `postgres` (EventSync Production Schema `public`) |
-| **Database Management System (DBMS)** | **PostgreSQL 15+** (Managed via Supabase) |
-| **Database Location** | Cloud-hosted (Supabase AWS Asia-Pacific Northeast Region) |
-| **Database Type** | **Relational Database (RDBMS)** with Row-Level Security (RLS), JSONB support, and real-time WAL replication |
-| **Connection Method** | Browser clients connect via `@supabase/supabase-js` over HTTPS (PostgREST) and WSS (Supabase Realtime); administrative/test scripts connect via pooled PostgreSQL TLS connection (`pg`). |
+| **Database Name** | `postgres` (EventSync Schema: `public`) |
+| **Database Management System (DBMS)** | **PostgreSQL** (Managed via Supabase) |
+| **Database Location** | Cloud-hosted (Supabase Cloud Infrastructure, AWS Asia-Pacific Northeast Region) |
+| **Database Type** | **Relational Database Management System (RDBMS)** with JSONB support and Row-Level Security (RLS) |
+| **Connection Method** | Web client nodes connect securely over **HTTPS** via the Supabase JavaScript SDK (`@supabase/supabase-js`) using PostgREST APIs and transactional Remote Procedure Calls (RPCs), and over **Secure WebSockets (WSS)** via Supabase Realtime for live synchronization; administrative and automated test scripts connect over TLS using the PostgreSQL connection pooler (`pg`). |
+
+Data integrity and security are enforced directly at the database layer through primary and foreign keys, `CHECK` constraints (such as `ends_at > starts_at` and valid role/status values), unique constraints preventing duplicate registrations, check-ins, check-outs, and certificates, and Row-Level Security (RLS) policies that restrict each user role to only its authorized records.
 
 ### 5.3 Database Tables
 
