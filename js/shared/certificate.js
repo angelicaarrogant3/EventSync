@@ -624,9 +624,12 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
       </div>
     </div>
 
-    <div class="row" style="justify-content:flex-end;margin-top:1rem;gap:.5rem">
-      <button type="button" class="btn ghost" id="tplCancelBtn">Cancel</button>
-      <button type="button" class="btn" id="tplSaveBtn">Save template</button>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-top:1rem;gap:.75rem">
+      <span id="tplSaveErr" role="alert" style="color:#fca5a5;font-size:.85rem"></span>
+      <div class="row" style="gap:.5rem">
+        <button type="button" class="btn ghost" id="tplCancelBtn">Cancel</button>
+        <button type="button" class="btn" id="tplSaveBtn">Save template</button>
+      </div>
     </div>`;
 
   if (!dlg.open) dlg.showModal();
@@ -743,11 +746,22 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
   dlg.querySelector('#tplCancelBtn').onclick = () => dlg.close();
   dlg.querySelector('#tplSaveBtn').onclick = async e => {
     const btn = e.currentTarget;
-    const name = dlg.querySelector('#tplName').value.trim();
-    if (name.length < 2) return toast('Enter a template name', 'error');
+    const errEl = dlg.querySelector('#tplSaveErr');
+    if (errEl) errEl.textContent = '';
+
+    const nameInput = dlg.querySelector('#tplName');
+    const name = nameInput.value.trim();
+    if (name.length < 2) {
+      if (errEl) errEl.textContent = 'Please enter a template name at the top first.';
+      nameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInput.focus();
+      toast('Enter a template name', 'error');
+      return;
+    }
 
     tpl.layout = buildCleanLayout();
     btn.disabled = true;
+    btn.textContent = 'Saving...';
     try {
       let filePath = tpl.file_path;
       let mimeType = tpl.mime_type || 'system/default';
@@ -781,9 +795,12 @@ export async function openTemplateEditorModal({ profile, initialTemplate = null,
       dlg.close();
       onSaved?.(saved);
     } catch (err) {
-      toast(errMsg(err), 'error');
+      const msg = errMsg(err);
+      if (errEl) errEl.textContent = msg;
+      toast(msg, 'error');
     } finally {
       btn.disabled = false;
+      btn.textContent = 'Save template';
     }
   };
 
